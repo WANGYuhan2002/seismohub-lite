@@ -7,6 +7,13 @@
 <meta name="referrer" content="no-referrer">
 <meta name="color-scheme" content="light dark">
 <meta name="description" content="SeismoHub Lite: a static, searchable snapshot of recent seismology papers with their abstracts and offline-generated AI summaries.">
+<link rel="canonical" href="https://wangyuhan2002.github.io/seismohub-lite/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="SeismoHub Lite">
+<meta property="og:title" content="SeismoHub Lite: recent seismology papers">
+<meta property="og:description" content="A searchable snapshot of recent seismology papers with abstracts, links and offline AI summaries. Static page, no tracking.">
+<meta property="og:url" content="https://wangyuhan2002.github.io/seismohub-lite/">
+<meta name="twitter:card" content="summary">
 <title>SeismoHub Lite</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231d5bd8'/%3E%3Cpath d='M3 17h5l3-8 4 15 3-11 2 4h9' fill='none' stroke='white' stroke-width='2.4' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
@@ -176,6 +183,15 @@ dialog::backdrop{background:rgba(8,12,20,.55)}
 .prose h3{font-size:14.5px;margin:18px 0 4px}
 .prose h3:first-child{margin-top:0}
 .prose p{margin:4px 0 8px;font-size:14px;line-height:1.65}
+.exports{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+.btn:disabled,.icon-btn:disabled{opacity:.4;cursor:default;pointer-events:none}
+.hint{font-weight:500;color:var(--faint);font-size:12.5px}
+.dnav{display:flex;align-items:center;gap:6px;flex:none}
+.dnav .icon-btn{width:32px;height:32px;font-size:20px}
+.pos{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.totop{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:25;width:44px;height:44px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface);color:var(--text);box-shadow:var(--shadow);font-size:20px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .2s}
+.totop.show{opacity:1;pointer-events:auto}
+.totop:hover{border-color:var(--accent);color:var(--accent)}
 .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:8px 14px;border-radius:999px;font-size:13px;z-index:100;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.show{opacity:1}
 @media (max-width:900px){
@@ -236,7 +252,11 @@ dialog::backdrop{background:rgba(8,12,20,.55)}
     <div class="filters-foot"><button class="btn" id="clearAllMobile" type="button">Clear all</button><button class="btn primary" id="showResults" type="button">Show</button></div>
   </aside>
   <main class="results" id="results">
-    <div class="resultbar"><div id="count" class="count" aria-live="polite"></div><div id="active" class="active"></div></div>
+    <div class="resultbar">
+      <div id="count" class="count" aria-live="polite"></div>
+      <div id="active" class="active"></div>
+      <div class="exports"><span id="exLabel">Export</span><button class="btn small" id="exBib" type="button">BibTeX</button><button class="btn small" id="exRis" type="button">RIS</button></div>
+    </div>
     <div id="list" class="list" tabindex="-1"><div class="loading">Loading papers…</div></div>
     <div id="sentinel"></div>
     <div class="more-wrap"><button class="btn" id="more" type="button" hidden></button></div>
@@ -246,6 +266,11 @@ dialog::backdrop{background:rgba(8,12,20,.55)}
 
 <dialog id="detail" aria-labelledby="dTitle">
   <div class="dlg-bar">
+    <div class="dnav">
+      <button class="icon-btn" id="dPrev" type="button" aria-label="Previous paper">&lsaquo;</button>
+      <button class="icon-btn" id="dNext" type="button" aria-label="Next paper">&rsaquo;</button>
+      <span class="pos" id="dPos"></span>
+    </div>
     <span class="kicker" id="dKicker"></span>
     <div class="actions">
       <button class="btn ghost small" id="dCopy" type="button">Copy link</button>
@@ -263,6 +288,7 @@ dialog::backdrop{background:rgba(8,12,20,.55)}
   <div class="dlg-body prose" id="aBody"></div>
 </dialog>
 
+<button class="totop" id="toTop" type="button" aria-label="Back to top">&uarr;</button>
 <div class="toast" id="toast" role="status"></div>
 <noscript><p style="max-width:640px;margin:20px auto;padding:0 16px">This page needs JavaScript to load, search and filter the paper list.</p></noscript>
 
@@ -281,17 +307,86 @@ const SOURCE_NAMES = { crossref: 'Crossref', openalex: 'OpenAlex', arxiv: 'arXiv
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const FACETS = [
-  { key: 'topic', get: p => p.tp, open: true },
+  { key: 'topic', get: p => p.tp, open: true, fmt: v => term(v) },
   { key: 'journal', get: p => [p.j], search: true, limit: 25, open: true },
   { key: 'year', get: p => (p.d ? [p.d.slice(0, 4)] : []), order: 'value' },
   { key: 'month', get: p => (p.d && p.d.length >= 7 ? [p.d.slice(0, 7)] : []), order: 'value', fmt: v => fmtMonth(v) },
-  { key: 'keyword', get: p => p._kwl, search: true, limit: 25 },
+  { key: 'keyword', get: p => p._kwl, search: true, limit: 25, fmt: v => kwLabel(v) },
   { key: 'institution', get: p => p.in, search: true, limit: 25 },
-  { key: 'method', get: p => p.fc.m },
-  { key: 'data', get: p => p.fc.dt },
-  { key: 'target', get: p => p.fc.tg },
-  { key: 'role', get: p => (p.fc.r ? [p.fc.r] : []) },
+  { key: 'method', get: p => p.fc.m, fmt: v => term(v) },
+  { key: 'data', get: p => p.fc.dt, fmt: v => term(v) },
+  { key: 'target', get: p => p.fc.tg, fmt: v => term(v) },
+  { key: 'role', get: p => (p.fc.r ? [p.fc.r] : []), fmt: v => term(v) },
 ];
+
+// Chinese display labels for the fixed topic and facet vocabulary. The English
+// value stays the filter key (and the URL value); unknown terms show as-is.
+const ZH_TERMS = {
+  'Crust, lithosphere & mantle structure / geodynamics': '地壳、岩石圈与地幔结构 / 地球动力学',
+  'Earthquake source & rupture dynamics': '震源与破裂动力学',
+  'Fault mechanics & slow earthquakes': '断层力学与慢地震',
+  'Volcano, cryosphere, environmental & planetary seismology': '火山、冰冻圈、环境与行星地震学',
+  'Seismic hazard & strong ground motion': '地震危险性与强地面运动',
+  'Machine learning in seismology': '地震学中的机器学习',
+  'Earthquake detection, location & catalogs': '地震检测、定位与目录',
+  'Inverse theory & inverse problems': '反演理论与反问题',
+  'Off-topic / not seismology': '离题 / 非地震学',
+  'Seismic tomography (body & surface wave)': '地震层析成像（体波与面波）',
+  'Array, ocean-bottom & instrumentation': '台阵、海底观测与仪器',
+  'Ambient-noise seismology & interferometry': '背景噪声地震学与干涉法',
+  'Induced & reservoir seismicity': '诱发地震与储层地震活动',
+  'Numerical wave propagation & HPC': '数值波传播与高性能计算',
+  'Bayesian inversion & uncertainty quantification': '贝叶斯反演与不确定性量化',
+  'Distributed acoustic sensing & fibre-optic seismology': '分布式声学传感与光纤地震学',
+  'Full-waveform inversion & adjoint tomography': '全波形反演与伴随层析成像',
+  'Seismic anisotropy': '地震各向异性',
+  'Scattering, attenuation & coda (Q)': '散射、衰减与尾波（Q）',
+  'Receiver functions & discontinuity imaging': '接收函数与间断面成像',
+  'Unable to categorize': '无法归类',
+  'Others': '其他',
+  'Machine / deep learning': '机器学习 / 深度学习',
+  'Moment-tensor / source inversion': '矩张量 / 震源反演',
+  'Bayesian / probabilistic inversion': '贝叶斯 / 概率反演',
+  'Empirical / statistical (GMPE, ETAS)': '经验 / 统计方法（GMPE、ETAS）',
+  'Spectral-element / FD / DG modeling': '谱元 / 有限差分 / 间断伽辽金模拟',
+  'Interferometry / coda': '干涉法 / 尾波',
+  'Travel-time / ray tomography': '走时 / 射线层析成像',
+  'FWI / adjoint': '全波形反演 / 伴随方法',
+  'Ambient-noise cross-correlation': '背景噪声互相关',
+  'Normal-mode / surface-wave dispersion': '简正模 / 面波频散',
+  'Beamforming / array processing': '波束形成 / 台阵处理',
+  'Receiver functions': '接收函数',
+  'Matched-filter / template matching': '匹配滤波 / 模板匹配',
+  'Back-projection': '反投影',
+  'Synthetic / simulated': '合成 / 模拟数据',
+  'Earthquake waveforms (teleseismic/regional/local)': '地震波形（远震 / 区域 / 近震）',
+  'GNSS / InSAR / geodesy': 'GNSS / InSAR / 大地测量',
+  'Laboratory (rock physics)': '实验室（岩石物理）',
+  'Ambient noise': '背景噪声',
+  'Active-source / exploration': '主动源 / 勘探',
+  'DAS / fibre-optic': 'DAS / 光纤',
+  'Strong-motion': '强震动',
+  'Ocean-bottom (OBS)': '海底地震仪（OBS）',
+  'Normal modes / free oscillations': '简正模 / 自由振荡',
+  'Crust & lithosphere': '地壳与岩石圈',
+  'Fault zone': '断层带',
+  'Near-surface / engineering': '近地表 / 工程',
+  'Subduction zone / slab': '俯冲带 / 板片',
+  'Upper mantle / asthenosphere': '上地幔 / 软流圈',
+  'Volcano / magmatic system': '火山 / 岩浆系统',
+  'Geothermal / reservoir': '地热 / 储层',
+  'Ocean / marine': '海洋',
+  'Planetary (Mars/Moon)': '行星（火星 / 月球）',
+  'Global mantle': '全球地幔',
+  'Glacier / cryosphere': '冰川 / 冰冻圈',
+  'Whole Earth / core': '全地球 / 地核',
+  'Application / case study': '应用 / 案例研究',
+  'Method / algorithm': '方法 / 算法',
+  'Theory': '理论',
+  'Dataset / observation': '数据集 / 观测',
+  'Software / tool': '软件 / 工具',
+  'Review': '综述',
+};
 
 /* ------------------------------------------------------------------ i18n */
 const I18N = {
@@ -324,6 +419,11 @@ const I18N = {
     ev_on: 'Based on', ev_sources: 'Used sources', ev_model: 'Model', ev_notes: 'Notes',
     fig_desc: 'What it shows', fig_interp: 'Interpretation', fig_finding: 'Key finding', fig_cap: 'Caption (summary)', fig_rel: 'Relevance to the group',
     copyLink: 'Copy link', copied: 'Link copied', close: 'Close',
+    prev: 'Previous paper', next: 'Next paper', pos: (i, n) => `${i} / ${n}`,
+    copyBib: 'Copy BibTeX', bibCopied: 'BibTeX copied',
+    exportLabel: 'Export', exportTip: n => `Download the ${n} papers in the current list`,
+    absLoading: 'Loading abstract…', absFail: 'Could not load the abstract.',
+    absPending: 'abstracts still loading — more matches may appear', toTop: 'Back to top',
     loadError: 'Could not load the paper data.',
     loadHint: 'If you opened this file straight from disk, serve the folder over HTTP instead, e.g. “python3 -m http.server” inside docs/.',
     loading: 'Loading papers…',
@@ -370,6 +470,11 @@ const I18N = {
     ev_on: '依据', ev_sources: '参考来源', ev_model: '模型', ev_notes: '说明',
     fig_desc: '内容', fig_interp: '解读', fig_finding: '关键发现', fig_cap: '图注（概述）', fig_rel: '与课题组的关系',
     copyLink: '复制链接', copied: '链接已复制', close: '关闭',
+    prev: '上一篇', next: '下一篇', pos: (i, n) => `${i} / ${n}`,
+    copyBib: '复制 BibTeX', bibCopied: 'BibTeX 已复制',
+    exportLabel: '导出', exportTip: n => `下载当前列表中的 ${n} 篇`,
+    absLoading: '正在加载摘要…', absFail: '摘要加载失败。',
+    absPending: '摘要仍在加载，匹配结果可能还会增加', toTop: '回到顶部',
     loadError: '文章数据加载失败。',
     loadHint: '如果是直接从磁盘打开的文件，请改用 HTTP 方式访问，例如在 docs/ 目录里运行“python3 -m http.server”。',
     loading: '正在加载文章…',
@@ -392,7 +497,8 @@ const I18N = {
 /* ------------------------------------------------------------------ state */
 const S = { lang: 'en', q: '', sort: 'new', sel: {}, fq: {}, p: null, pushed: false, shown: 0, tokens: [], hlRe: null, hlTest: null };
 for (const f of FACETS) { S.sel[f.key] = new Set(); S.fq[f.key] = ''; }
-const DATA = { papers: [], byId: new Map(), generated: '', ready: false };
+const DATA = { papers: [], byId: new Map(), generated: '', ready: false, absReady: false, absFailed: false };
+const KW_LABEL = new Map(); // lower-case keyword -> its most common original spelling
 const HUES = new Map();
 let computed = { results: [], counts: {} };
 let lastHash = null;
@@ -406,9 +512,12 @@ const isZh = () => S.lang === 'zh';
 const pick = pair => { const p = arr(pair); return (isZh() && p[1]) ? p[1] : (p[0] || p[1] || ''); };
 const pickList = pair => { const p = arr(pair); const en = arr(p[0]); const zh = arr(p[1]); return (isZh() && zh.length) ? zh : (en.length ? en : zh); };
 const fmtN = n => Number(n).toLocaleString(isZh() ? 'zh-CN' : 'en-US');
-const fold = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const fold = s => String(s || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const isGray = t => GRAY_TOPICS.has(t);
+const term = v => (isZh() && ZH_TERMS[v]) || v;
+const kwLabel = v => KW_LABEL.get(v) || v;
+const hasAbs = p => p.af === 'ok' || p.af === 'short' || p.af === 'snippet';
 const hueOf = t => (HUES.has(t) ? HUES.get(t) : 215);
 const collator = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
 
@@ -502,6 +611,9 @@ function init(doc) {
   DATA.generated = String(doc.generated || '');
   const raw = arr(doc.papers);
   const topicCount = new Map();
+  const kwForms = new Map();
+  // Older snapshots kept abstracts inside papers.json; then nothing else is fetched.
+  if (raw.some(p => p && typeof p.ab === 'string' && p.ab)) DATA.absReady = true;
   for (const p of raw) {
     if (!p || !/^[0-9a-f]{16}$/.test(p.id)) continue;
     p.t = String(p.t || 'Untitled'); p.a = arr(p.a); p.j = String(p.j || 'Others'); p.d = String(p.d || '');
@@ -515,10 +627,46 @@ function init(doc) {
     DATA.papers.push(p);
     DATA.byId.set(p.id, p);
     for (const t of p.tp) topicCount.set(t, (topicCount.get(t) || 0) + 1);
+    for (const k of p.kw) {
+      const key = String(k).toLowerCase();
+      let forms = kwForms.get(key);
+      if (!forms) kwForms.set(key, (forms = new Map()));
+      forms.set(k, (forms.get(k) || 0) + 1);
+    }
   }
   [...topicCount.entries()].filter(([t]) => !isGray(t)).sort((a, b) => b[1] - a[1])
     .forEach(([t], i) => HUES.set(t, Math.round((212 + i * 137.508) % 360)));
+  for (const [key, forms] of kwForms) KW_LABEL.set(key, [...forms.entries()].sort((a, b) => b[1] - a[1])[0][0]);
   DATA.ready = true;
+}
+
+/* Abstracts live in their own file so the list can render first; they are
+   fetched in the background, then search and open cards pick them up. */
+function loadAbstracts() {
+  if (DATA.absReady) return;
+  fetch('data/abstracts.json')
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(map => {
+      for (const p of DATA.papers) {
+        const text = map && typeof map[p.id] === 'string' ? map[p.id] : '';
+        if (text) { p.ab = text; p._hay = null; }
+      }
+      DATA.absReady = true;
+      onAbstractsSettled();
+    })
+    .catch(() => { DATA.absReady = true; DATA.absFailed = true; onAbstractsSettled(); });
+}
+function fillAbsNodes(root) {
+  root.querySelectorAll('[data-abs]').forEach(el => {
+    const p = DATA.byId.get(el.getAttribute('data-abs'));
+    el.removeAttribute('data-abs');
+    put(el, p && p.ab ? hl(p.ab) : (DATA.absFailed ? T('absFail') : T('noAbstract')));
+  });
+}
+function onAbstractsSettled() {
+  if (S.q) refresh({ keepShown: true }); // matches inside abstracts can now be found
+  else { fillAbsNodes(listEl); renderCount(); }
+  if (dlg.open && S.p && DATA.byId.has(S.p)) { const top = dBody.scrollTop; fillDetail(DATA.byId.get(S.p)); dBody.scrollTop = top; }
 }
 
 function compute() {
@@ -555,8 +703,10 @@ function compute() {
 function relNode(p) {
   return h('div', { class: 'rel', title: T('relTip') }, h('span', null, T('relevance')), h('b', null, String(p.rel)));
 }
+// In Chinese the chip shows the translated term; the tooltip keeps the English original.
+const chipTip = v => (term(v) !== v ? `${T('filterBy')(term(v))} · ${v}` : T('filterBy')(v));
 function topicChip(t) {
-  const b = h('button', { class: 'chip t' + (isGray(t) ? ' gray' : '') + (S.sel.topic.has(t) ? ' sel' : ''), type: 'button', 'data-facet': 'topic', 'data-value': t, title: T('filterBy')(t) }, t);
+  const b = h('button', { class: 'chip t' + (isGray(t) ? ' gray' : '') + (S.sel.topic.has(t) ? ' sel' : ''), type: 'button', 'data-facet': 'topic', 'data-value': t, title: chipTip(t) }, term(t));
   if (!isGray(t)) b.style.setProperty('--h', hueOf(t));
   return b;
 }
@@ -565,7 +715,7 @@ function kwChip(k) {
   return h('button', { class: 'chip k' + (S.sel.keyword.has(v) ? ' sel' : ''), type: 'button', 'data-facet': 'keyword', 'data-value': v, title: T('filterBy')(k) }, k);
 }
 function facetChip(key, v) {
-  return h('button', { class: 'chip f' + (S.sel[key].has(v) ? ' sel' : ''), type: 'button', 'data-facet': key, 'data-value': v, title: T('filterBy')(v) }, v);
+  return h('button', { class: 'chip f' + (S.sel[key].has(v) ? ' sel' : ''), type: 'button', 'data-facet': key, 'data-value': v, title: chipTip(v) }, term(v));
 }
 function linkButtons(p) {
   const out = [];
@@ -586,6 +736,7 @@ function card(p) {
   const tk = pick(p.tk);
   let absOpen = false;
   if (p.ab && S.hlTest) { S.hlTest.lastIndex = 0; absOpen = S.hlTest.test(p.ab); }
+  const absPending = !p.ab && !DATA.absReady && hasAbs(p);
   return add(el, [
     h('div', { class: 'card-head' },
       h('div', { class: 'meta' }, h('span', null, p.j), p.d ? h('span', { class: 'date' }, ' · ' + fmtDate(p.d)) : null),
@@ -596,7 +747,9 @@ function card(p) {
     p.in.length ? h('div', { class: 'inst' }, icon('building'), h('span', null, p.in.slice(0, 3).join(' · ') + (p.in.length > 3 ? ` · +${p.in.length - 3}` : ''))) : null,
     tk ? h('p', { class: 'takeaway' }, h('span', { class: 'ai-badge', title: T('aiTip') }, 'AI'), tk) : null,
     p.kw.length ? h('div', { class: 'chips' }, p.kw.slice(0, 8).map(kwChip)) : null,
-    p.ab ? h('details', { class: 'absd', open: absOpen }, h('summary', null, T('abstract')), h('p', { class: 'abs' }, hl(p.ab))) : null,
+    (p.ab || absPending) ? h('details', { class: 'absd', open: absOpen },
+      h('summary', null, T('abstract')),
+      h('p', { class: 'abs', 'data-abs': absPending ? p.id : null }, p.ab ? hl(p.ab) : T('absLoading'))) : null,
     h('div', { class: 'actions' },
       h('button', { class: 'btn primary', type: 'button', 'data-open': p.id }, icon('spark'), T('openDetail')),
       linkButtons(p)),
@@ -653,7 +806,7 @@ function renderFacet(f) {
   let entries = [...countMap.entries()];
   for (const v of sel) if (!countMap.has(v)) entries.push([v, 0]);
   const fq = fold(S.fq[f.key]);
-  if (fq) entries = entries.filter(([v]) => sel.has(v) || fold(f.fmt ? f.fmt(v) : v).includes(fq));
+  if (fq) entries = entries.filter(([v]) => sel.has(v) || fold(v).includes(fq) || (f.fmt && fold(f.fmt(v)).includes(fq)));
   if (f.order === 'value') entries.sort((a, b) => (a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0));
   else entries.sort((a, b) => (b[1] - a[1]) || collator.compare(a[0], b[0]));
   let shown = entries; let hidden = 0;
@@ -688,6 +841,13 @@ function renderActive() {
   put(filtersBtn, icon('filter'), T('filters'), nSel ? h('span', { class: 'badge' }, String(nSel)) : null);
 }
 function anySelected() { return FACETS.some(f => S.sel[f.key].size > 0); }
+function renderCount() {
+  const n = computed.results.length;
+  put(countEl, T('count')(fmtN(n), fmtN(DATA.papers.length)),
+    (S.q && !DATA.absReady) ? h('span', { class: 'hint' }, ' · ' + T('absPending')) : null);
+  const exportTip = T('exportTip')(fmtN(n));
+  for (const id of ['exBib', 'exRis']) { const b = document.getElementById(id); if (b) { b.disabled = !n; b.title = exportTip; } }
+}
 
 /* ------------------------------------------------------------------ refresh */
 function refresh(opts = {}) {
@@ -695,8 +855,7 @@ function refresh(opts = {}) {
   computed = compute();
   for (const f of FACETS) renderFacet(f);
   renderActive();
-  const total = fmtN(DATA.papers.length);
-  countEl.textContent = T('count')(fmtN(computed.results.length), total);
+  renderCount();
   $('#showResults').textContent = T('showN')(fmtN(computed.results.length));
   renderList(!!opts.keepShown);
   if (opts.toTop) {
@@ -758,18 +917,40 @@ function renderDetail(p) {
     }
   };
   fillAuthors(false);
+  const absPending = !p.ab && !DATA.absReady && hasAbs(p);
+  let absBody;
+  if (p.ab) absBody = h('p', { class: 'abs' }, hl(p.ab));
+  else if (absPending) absBody = h('p', { class: 'abs muted' }, T('absLoading'));
+  else absBody = h('p', { class: 'muted' }, p.af === 'withheld' ? T('abstractWithheld') : (DATA.absFailed && hasAbs(p) ? T('absFail') : T('noAbstract')));
   put(dBody,
     h('div', { class: 'chips' }, p.tp.map(topicChip)),
     h('h2', { class: 'd-title', id: 'dTitle' }, hl(p.t)),
     p.a.length ? authorsBox : null,
     p.in.length ? h('div', { class: 'inst' }, icon('building'), h('span', null, p.in.join(' · '))) : null,
     p.kw.length ? h('div', { class: 'chips' }, p.kw.map(kwChip)) : null,
-    h('div', { class: 'd-actions' }, linkButtons(p), relNode(p)),
-    h('section', { class: 'sec' }, h('h3', null, T('abstract')),
-      p.ab ? h('p', { class: 'abs' }, hl(p.ab)) : h('p', { class: 'muted' }, p.ab === '' && p.af === 'withheld' ? T('abstractWithheld') : T('noAbstract')),
-      p.ab ? h('div', { class: 'notice cr' }, T('abstractNote')(SOURCE_NAMES[p.src] || '')) : null),
+    h('div', { class: 'd-actions' }, linkButtons(p),
+      h('button', { class: 'btn', type: 'button', onclick: () => copyText(bibtex([p]), T('bibCopied')) }, T('copyBib')),
+      relNode(p)),
+    h('section', { class: 'sec' }, h('h3', null, T('abstract')), absBody,
+      (p.ab || absPending) ? h('div', { class: 'notice cr' }, T('abstractNote')(SOURCE_NAMES[p.src] || '')) : null),
     h('div', { class: 'aiwrap', id: 'aiwrap' }, h('div', { class: 'loading' }, T('loadingAI'))),
   );
+  updateNav();
+}
+/* Previous / next paper inside the dialog, in the order of the current list. */
+function navIndex() { return S.p ? computed.results.findIndex(x => x.id === S.p) : -1; }
+function updateNav() {
+  const i = navIndex(); const n = computed.results.length;
+  const prev = $('#dPrev'); const next = $('#dNext'); const pos = $('#dPos');
+  prev.disabled = i <= 0; next.disabled = i < 0 || i >= n - 1;
+  prev.title = T('prev') + ' (←)'; next.title = T('next') + ' (→)';
+  prev.setAttribute('aria-label', T('prev')); next.setAttribute('aria-label', T('next'));
+  pos.textContent = i >= 0 ? T('pos')(fmtN(i + 1), fmtN(n)) : '';
+}
+function navDetail(step) {
+  const i = navIndex();
+  const target = i >= 0 ? computed.results[i + step] : null;
+  if (target) openDetail(target.id);
 }
 function renderAI(p, a) {
   const wrap = $('#aiwrap', dBody);
@@ -806,7 +987,7 @@ function renderAI(p, a) {
   const tm = arr(a.tm);
   if (tm.length) {
     out.push(sec(T('sec_tm'), h('div', { class: 'grid' }, tm.map(m => h('div', { class: 'tm' },
-      h('div', { class: 'tm-h' }, h('div', null, m.topic), h('span', null, `${Math.round((Number(m.conf) || 0) * 100)}% ${T('confidence')}`)),
+      h('div', { class: 'tm-h' }, h('div', { title: m.topic }, term(m.topic)), h('span', null, `${Math.round((Number(m.conf) || 0) * 100)}% ${T('confidence')}`)),
       m.why ? h('p', null, m.why) : null))), true));
   }
   const rows = [['method', p.fc.m], ['data', p.fc.dt], ['target', p.fc.tg], ['role', p.fc.r ? [p.fc.r] : []]].filter(([, v]) => v.length);
@@ -857,11 +1038,108 @@ dlg.addEventListener('click', e => {
   if (fc) { e.preventDefault(); const key = fc.getAttribute('data-facet'); const v = fc.getAttribute('data-value'); closeDetailFor(() => setFacet(key, v, !S.sel[key].has(v))); }
 });
 $('#dClose').addEventListener('click', () => dlg.close());
-$('#dCopy').addEventListener('click', async () => {
-  if (!S.p) return;
-  const url = location.origin + location.pathname + '#p=' + S.p;
-  try { await navigator.clipboard.writeText(url); toast(T('copied')); } catch (e) { window.prompt(T('copyLink'), url); }
+$('#dCopy').addEventListener('click', () => {
+  if (S.p) copyText(location.origin + location.pathname + '#p=' + S.p, T('copied'));
 });
+$('#dPrev').addEventListener('click', () => navDetail(-1));
+$('#dNext').addEventListener('click', () => navDetail(1));
+dlg.addEventListener('keydown', e => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '')) return;
+  e.preventDefault();
+  navDetail(e.key === 'ArrowRight' ? 1 : -1);
+});
+
+/* ------------------------------------------------------------------ citations: BibTeX / RIS, built in the browser */
+const MISC_VENUE = /\b(arxiv|ess open archive|eartharxiv|research square|zenodo|figshare|hal|osti|workflowhub|repository|data services|data collection|dataset|thesis|general assembly|discussions|computing center|publication database|seismological facility|copernicus|workshop)\b/i;
+const BIB_MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const BIB_STOP = new Set(['the', 'and', 'for', 'from', 'with', 'into', 'over', 'under', 'using', 'via', 'new', 'its', 'are', 'how']);
+const TEX = { '\\': '\\textbackslash{}', '{': '\\{', '}': '\\}', '%': '\\%', '&': '\\&', '#': '\\#', '_': '\\_', '$': '\\$', '~': '\\textasciitilde{}', '^': '\\textasciicircum{}' };
+const tex = s => String(s || '').replace(/[\\{}%&#_$~^]/g, c => TEX[c]);
+const isMisc = p => p.src === 'arxiv' || MISC_VENUE.test(p.j);
+const arxivId = url => { const m = /arxiv\.org\/abs\/([^\s?#]+?)(v\d+)?$/i.exec(url || ''); return m ? m[1] : ''; };
+const paperUrl = p => p.url || (p.doi ? doiUrl(p.doi) : '');
+function bibKey(p, used) {
+  const first = String(p.a[0] || 'anon');
+  const family = (first.includes(',') ? first.split(',')[0] : first.trim().split(/\s+/).pop()) || 'anon';
+  const word = (fold(p.t).match(/[a-z0-9]+/g) || []).find(w => w.length > 2 && !BIB_STOP.has(w)) || '';
+  const base = (fold(family).replace(/[^a-z0-9]/g, '') || 'anon') + (p.d.slice(0, 4) || 'nd') + word;
+  let key = base; let n = 1;
+  while (used.has(key)) { n += 1; key = base + (n <= 26 ? String.fromCharCode(96 + n) : String(n)); }
+  used.add(key);
+  return key;
+}
+function bibtex(list) {
+  const used = new Set();
+  return list.map(p => {
+    const lines = [];
+    const field = (k, v, bare) => { if (v) lines.push(`  ${k} = ${bare ? v : '{' + v + '}'},`); };
+    field('author', p.a.map(tex).join(' and '));
+    field('title', `{${tex(p.t)}}`);
+    field(isMisc(p) ? 'howpublished' : 'journal', tex(p.j));
+    field('year', p.d.slice(0, 4));
+    const m = Number(p.d.slice(5, 7));
+    if (m >= 1 && m <= 12) field('month', BIB_MONTHS[m - 1], true);
+    const ax = arxivId(p.url);
+    if (ax) { field('eprint', ax); field('archiveprefix', 'arXiv'); }
+    field('doi', p.doi.replace(/[{}]/g, ''));
+    field('url', paperUrl(p).replace(/[{}]/g, ''));
+    return `@${isMisc(p) ? 'misc' : 'article'}{${bibKey(p, used)},\n${lines.join('\n')}\n}`;
+  }).join('\n\n') + '\n';
+}
+function ris(list) {
+  const out = [];
+  for (const p of list) {
+    const line = (tag, v) => { v = String(v || '').replace(/\s+/g, ' ').trim(); if (v) out.push(`${tag}  - ${v}`); };
+    line('TY', isMisc(p) ? 'GEN' : 'JOUR');
+    for (const a of p.a) line('AU', a);
+    line('TI', p.t);
+    line(isMisc(p) ? 'PB' : 'T2', p.j);
+    line('PY', p.d.slice(0, 4));
+    if (p.d.length >= 10) line('DA', p.d.replace(/-/g, '/'));
+    line('DO', p.doi);
+    line('UR', paperUrl(p));
+    out.push('ER  - ', '');
+  }
+  return out.join('\r\n');
+}
+function download(text, name, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = h('a', { href: url, download: name, hidden: true });
+  document.body.append(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 2000);
+}
+function exportList(kind) {
+  const list = computed.results;
+  if (!list.length) return;
+  const stem = `seismohub-lite_${DATA.generated || 'snapshot'}_${list.length}`;
+  if (kind === 'ris') download(ris(list), stem + '.ris', 'application/x-research-info-systems;charset=utf-8');
+  else download(bibtex(list), stem + '.bib', 'application/x-bibtex;charset=utf-8');
+}
+async function copyText(text, okMsg) {
+  try { await navigator.clipboard.writeText(text); toast(okMsg); return; } catch (e) { /* fall back below */ }
+  // Inside a modal dialog the rest of the page is inert, so the helper goes into the dialog.
+  const ta = h('textarea', { readonly: true, style: 'position:fixed;left:-9999px;top:0' });
+  ta.value = text;
+  (dlg.open ? dlg : document.body).append(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  ta.remove();
+  if (ok) toast(okMsg); else window.prompt(okMsg, text);
+}
+$('#exBib').addEventListener('click', () => exportList('bib'));
+$('#exRis').addEventListener('click', () => exportList('ris'));
+
+/* ------------------------------------------------------------------ back to top */
+const toTopBtn = $('#toTop');
+let topTick = 0;
+window.addEventListener('scroll', () => {
+  if (topTick) return;
+  topTick = requestAnimationFrame(() => { topTick = 0; toTopBtn.classList.toggle('show', window.scrollY > 1400); });
+}, { passive: true });
+toTopBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
 
 /* ------------------------------------------------------------------ about dialog + footer */
 function renderAbout() {
@@ -898,6 +1176,9 @@ function applyStaticText() {
   const lb = $('#langBtn'); lb.textContent = T('langBtn'); lb.lang = isZh() ? 'en' : 'zh-CN';
   $('#aboutBtn').textContent = T('about');
   $('#filtersTitle').textContent = T('filters');
+  $('#exLabel').textContent = T('exportLabel');
+  toTopBtn.title = T('toTop'); toTopBtn.setAttribute('aria-label', T('toTop'));
+  if (!DATA.ready) put(filtersBtn, icon('filter'), T('filters')); // label before data arrives; renderActive adds the badge
   $('#clearAllMobile').textContent = T('clearAll');
   $('#filtersClose').setAttribute('aria-label', T('close'));
   $('#dClose').setAttribute('aria-label', T('close'));
@@ -1023,8 +1304,10 @@ window.addEventListener('resize', measureTop);
       refresh();
       lastHash = location.hash.replace(/^#/, '');
       if (S.p && DATA.byId.has(S.p)) openDetail(S.p, true);
+      setTimeout(loadAbstracts, 30); // after the first render
     })
-    .catch(() => {
+    .catch(err => {
+      console.error(err);
       countEl.textContent = '';
       listEl.replaceChildren(h('div', { class: 'empty' }, h('strong', null, T('loadError')), h('p', null, T('loadHint'))));
     });

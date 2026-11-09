@@ -12,9 +12,12 @@ What this script does:
   * Reads only whitelisted columns from ``papers`` and ``ai_analyses``. It
     never touches the other tables (reading state, projects, Q&A chat, ...).
   * Writes static JSON for the site:
-      docs/data/papers.json   list, filter and search fields, plus abstracts
-      docs/data/d/<x>.json    AI analysis per paper, in 16 shards by the first
-                              hex digit of the paper id; loaded on demand
+      docs/data/papers.json     list, filter and search fields (loaded first)
+      docs/data/abstracts.json  {paper id: abstract}, loaded in the background
+                                after the first render, so phones see the list
+                                sooner
+      docs/data/d/<x>.json      AI analysis per paper, in 16 shards by the first
+                                hex digit of the paper id; loaded on demand
 
 What it never exports:
   * PDFs, PDF paths and hashes, retrieval logs, embeddings
@@ -276,6 +279,7 @@ def build(db_path: Path, *, abstracts_mode: str, include_group: bool) -> Dict[st
 
     block = load_blocklist(BLOCKLIST_FILE)
     index: List[Dict[str, Any]] = []
+    abstracts: Dict[str, str] = {}
     shards: Dict[str, Dict[str, Any]] = {f"{i:x}": {} for i in range(16)}
     stats = {"papers": 0, "with_abstract": 0, "abstract_blocked": 0, "with_analysis": 0}
 
@@ -300,6 +304,13 @@ def build(db_path: Path, *, abstracts_mode: str, include_group: bool) -> Dict[st
             abstract, flag = "", "withheld"
         if abstract:
             stats["with_abstract"] += 1
+            abstracts[pid] = abstract
+
+        # The page builds the doi.org link from the DOI, so a link that is only
+        # that same doi.org URL is not stored twice.
+        link = safe_link(p.get("link"))
+        if doi and link.lower().rstrip("/") in (f"https://doi.org/{doi}", f"http://doi.org/{doi}", f"https://dx.doi.org/{doi}"):
+            link = ""
 
         keywords = (
             clean_list(_json(a.get("keywords"), []))
@@ -319,7 +330,7 @@ def build(db_path: Path, *, abstracts_mode: str, include_group: bool) -> Dict[st
             "j": journal,
             "d": clean_text(p.get("published_date")) or clean_text(p.get("datetime_utc"))[:10],
             "doi": doi,
-            "url": safe_link(p.get("link")),
+            "url": link,
             "src": clean_text(p.get("source")),
             "tp": clean_list(_json(p.get("topics"), [])) or ["Others"],
             "in": clean_institutions(_json(p.get("institutions"), [])),
@@ -332,8 +343,7 @@ def build(db_path: Path, *, abstracts_mode: str, include_group: bool) -> Dict[st
                 "tg": clean_list(facets.get("target")),
                 "r": clean_text(facets.get("paper_role")),
             },
-            "ab": abstract,
-            "af": flag,
+            "af": flag,  # the text itself goes to abstracts.json
         }
         index.append(entry)
         if a:
@@ -342,7 +352,7 @@ def build(db_path: Path, *, abstracts_mode: str, include_group: bool) -> Dict[st
         stats["papers"] += 1
 
     index.sort(key=lambda e: (e["d"], e["id"]), reverse=True)
-    return {"index": index, "shards": shards, "stats": stats}
+    return {"index": index, "abstracts": abstracts, "shards": shards, "stats": stats}
 
 
 # --------------------------------------------------------------------------- write
@@ -398,25 +408,26 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         "abstracts": args.abstracts,
         "papers": result["index"],
     }
-    files = {out_dir / "papers.json": dumps(index_doc)}
+    files = {
+        out_dir / "papers.json": dumps(index_doc),
+        out_dir / "abstracts.json": dumps(result["abstracts"]),
+    }
     for key, shard in result["shards"].items():
         files[out_dir / "d" / f"{key}.json"] = dumps(shard)
 
     old_ids = previous_ids(out_dir / "papers.json")
     new_ids = {p["id"] for p in result["index"]}
 
-    total = 0
     print(f"papers: {result['stats']['papers']}  with abstract: {result['stats']['with_abstract']}  "
           f"abstracts withheld by blocklist: {result['stats']['abstract_blocked']}  "
           f"with AI analysis: {result['stats']['with_analysis']}")
     print(f"abstract mode: {args.abstracts}  group follow-ups: {'included' if args.include_group_followups else 'excluded'}")
-    for path, text in files.items():
-        size = len(text.encode("utf-8"))
-        total += size
-        if path.name == "papers.json":
-            print(f"  {path.relative_to(out_dir.parent) if out_dir.parent in path.parents else path.name}: {size/1e6:.2f} MB")
-    print(f"  16 analysis shards: {(total - len(files[out_dir / 'papers.json'].encode('utf-8')))/1e6:.2f} MB")
-    print(f"  total: {total/1e6:.2f} MB")
+    sizes = {path: len(text.encode("utf-8")) for path, text in files.items()}
+    for name in ("papers.json", "abstracts.json"):
+        print(f"  {name}: {sizes[out_dir / name] / 1e6:.2f} MB")
+    shard_total = sum(s for p, s in sizes.items() if p.parent.name == "d")
+    print(f"  16 analysis shards: {shard_total / 1e6:.2f} MB")
+    print(f"  total: {sum(sizes.values()) / 1e6:.2f} MB")
     if old_ids is None:
         print("previous export: none")
     else:

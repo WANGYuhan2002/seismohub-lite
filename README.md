@@ -7,9 +7,17 @@ seismology and wave physics.
 
 Each paper shows its title, authors, journal, date, abstract and DOI or link,
 plus the AI analyses that were generated offline: takeaway, summary,
-structured notes, topic labels, keywords and facets. You can search, sort, and
-filter by topic, journal, year, month, keyword, institution, method, data type,
-target and paper type. The page works on phones.
+structured notes, topic labels, keywords and facets.
+
+What you can do on the page:
+
+- Search, sort, and filter by topic, journal, year, month, keyword,
+  institution, method, data type, target and paper type.
+- Step through papers with ‹ / › or the arrow keys.
+- Copy a BibTeX entry, or export the current list as BibTeX or RIS.
+- Switch between English and Chinese.
+
+The page works on phones.
 
 What the site does **not** have:
 
@@ -24,26 +32,32 @@ What the site does **not** have:
 | Path | Content |
 | --- | --- |
 | `docs/index.html` | The whole site: HTML, CSS and vanilla JS in one file |
-| `docs/data/papers.json` | Paper list: metadata, abstracts, AI topics, keywords and takeaways |
+| `docs/data/papers.json` | Paper list: metadata, AI topics, keywords and takeaways. Loaded first. |
+| `docs/data/abstracts.json` | Abstracts, loaded in the background after the list renders |
 | `docs/data/d/<0-f>.json` | Per-paper AI analysis, split into 16 shards and loaded when a paper is opened |
 | `tools/export_lite.py` | Read-only exporter from the SeismoHub database; whitelisted fields only |
-| `tools/check_site.py` | End-to-end check in headless Chrome |
+| `tools/check_site.py` | End-to-end check in headless Chrome. `--base <url>` tests the live site. |
 | `tools/privacy_scan.py` | Privacy scan to run before every publish |
+| `tools/update.py` | Runs export, check and scan in one go, then shows the diff. Never pushes. |
 | `tools/abstract_blocklist.txt` | Abstracts to withhold, for takedown requests |
+| `tools/privacy_allowlist.txt` | Strings the scan may let through after human review, each with a reason |
 
 GitHub Pages serves the `docs/` folder of the `main` branch.
 
 ## Updating the snapshot
 
 ```bash
-python3 tools/export_lite.py --db <path-to>/seismo_hub.db
-python3 tools/check_site.py
-python3 tools/privacy_scan.py --env-file <path-to>/.env --db <path-to>/seismo_hub.db
+python3 tools/update.py --db <path-to>/seismo_hub.db --env-file <path-to>/.env
 git add -A
 git diff --cached --stat
 git commit -m "Update snapshot"
 git push
+python3 tools/check_site.py --base https://wangyuhan2002.github.io/seismohub-lite
 ```
+
+`update.py` runs `export_lite.py`, `check_site.py` and `privacy_scan.py` in
+that order. It stops at the first failure. Once Pages has rebuilt, about a
+minute after the push, the last command checks the live site.
 
 The exporter opens the database read-only (`mode=ro` and `query_only`). It
 reads only whitelisted columns. It never exports the following:
@@ -94,11 +108,13 @@ storage. As the host, GitHub may keep standard server logs.
 
 更新步骤：
 
-1. 运行导出脚本。它只读打开 `seismo_hub.db`，只取白名单字段。
-2. 运行 `check_site.py` 做页面检查。
-3. 运行 `privacy_scan.py` 做隐私扫描，结果必须是 `RESULT: CLEAN`。
-4. 查看改动。
-5. 提交，然后推送。
+1. 运行 `tools/update.py`。它会依次做三件事，任何一步失败就停下：
+   - 导出：只读打开 `seismo_hub.db`，只取白名单字段。
+   - 页面检查。
+   - 隐私扫描：结果必须是 `RESULT: CLEAN`。
+2. 查看改动。
+3. 提交，然后推送。
+4. 推送大约一分钟后，用 `check_site.py --base <网址>` 检查线上页面。
 
 推送就等于公开发布。每次推送前，先确认扫描结果和改动内容。如果收到删除摘要的请求，在
 `tools/abstract_blocklist.txt` 里加上对应的 DOI 或期刊，再重新导出。

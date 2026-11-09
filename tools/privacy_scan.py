@@ -92,7 +92,10 @@ PERSONAL_FIELDS = re.compile(
 
 # Exact data shape written by tools/export_lite.py
 INDEX_TOP = {"generated", "count", "abstracts", "papers"}
-INDEX_PAPER = {"id", "t", "a", "j", "d", "doi", "url", "src", "tp", "in", "kw", "rel", "tk", "fc", "ab", "af"}
+INDEX_PAPER = {"id", "t", "a", "j", "d", "doi", "url", "src", "tp", "in", "kw", "rel", "tk", "fc", "af"}
+# Abstracts are a few thousand characters at most; anything far longer would
+# look like full text, which must never be published.
+MAX_TEXT_CHARS = 15000
 INDEX_FACETS = {"m", "dt", "tg", "r"}
 SHARD_ENTRY = {"sum", "sa", "kc", "me", "de", "li", "fig", "tm", "ev", "us", "model"}
 FIG_ITEM = {"id", "title", "desc", "interp", "finding", "cap"}
@@ -188,7 +191,29 @@ def check_json_shape(path: Path, rel: str, rep: Report, allow_group: bool):
     except ValueError as e:
         rep.hit("invalid JSON", rel, str(e)[:80])
         return
-    if path.name == "papers.json":
+
+    longest = 0
+    stack = [data]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, dict):
+            stack.extend(node.values())
+        elif isinstance(node, list):
+            stack.extend(node)
+        elif isinstance(node, str):
+            longest = max(longest, len(node))
+    if longest > MAX_TEXT_CHARS:
+        rep.hit("overlong text (full text?)", rel, f"{longest} characters")
+
+    if path.name == "abstracts.json":
+        if not isinstance(data, dict):
+            rep.hit("unexpected abstracts shape", rel)
+            return
+        bad = [k for k, v in data.items() if not re.fullmatch(r"[0-9a-f]{16}", k) or not isinstance(v, str)]
+        if bad:
+            rep.hit("unexpected abstracts entry", rel, bad[0][:20])
+        rep.info.append(f"{rel}: {len(data)} abstracts, longest {longest} characters")
+    elif path.name == "papers.json":
         if set(data) != INDEX_TOP:
             rep.hit("unexpected top-level keys", rel, ", ".join(sorted(set(data) ^ INDEX_TOP)))
         for p in data.get("papers", []):
