@@ -229,6 +229,13 @@ def main() -> int:
             check(page.locator("#detail .sec").first.locator("h3").inner_text().strip().lower() == "abstract", "abstract section first")
             check(page.locator("#detail .notice.cr").count() == 1, "abstract copyright note shown")
             check(not stray.search(page.locator("#detail").inner_text()), "dialog shows no stray null/undefined")
+            # Safari/WebKit collapsed the dialog to a 105 px strip while its body had
+            # "flex:1" (basis 0%). Chrome never showed it, so check the cause too.
+            dlg_h, vh, basis = page.evaluate(
+                "[document.querySelector('#detail').getBoundingClientRect().height, innerHeight,"
+                " getComputedStyle(document.querySelector('#dBody')).flexBasis]")
+            check(dlg_h >= 0.8 * vh, f"dialog fills the window height ({dlg_h:.0f} of {vh}px)")
+            check(basis == "auto", f"dialog body flex-basis is auto, not 0% ({basis})")
 
             # prev / next
             pos1 = page.locator("#dPos").inner_text().strip()

@@ -20,6 +20,7 @@ What this script does:
                                 hex digit of the paper id; loaded on demand
 
 What it never exports:
+  * papers the app's topic classifier labels "Off-topic / not seismology"
   * PDFs, PDF paths and hashes, retrieval logs, embeddings
   * reading state, notes, takeaways, follow-up flags, projects, chat history
   * the raw AI payload; only display-ready fields are picked from it
@@ -52,6 +53,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT = REPO_ROOT / "docs" / "data"
 BLOCKLIST_FILE = REPO_ROOT / "tools" / "abstract_blocklist.txt"
 SNIPPET_CHARS = 200
+# Papers whose topics include the app's "Off-topic / not seismology" label are
+# left out of the public site entirely (owner's decision, 2026-11-09).
+OFF_TOPIC = re.compile(r"^\s*off[\s-]?topic\b", re.I)
 
 # Columns read from the database. Nothing outside these lists is selected.
 PAPER_COLUMNS = [
@@ -281,12 +285,16 @@ def build(db_path: Path, *, abstracts_mode: str, include_group: bool) -> Dict[st
     index: List[Dict[str, Any]] = []
     abstracts: Dict[str, str] = {}
     shards: Dict[str, Dict[str, Any]] = {f"{i:x}": {} for i in range(16)}
-    stats = {"papers": 0, "with_abstract": 0, "abstract_blocked": 0, "with_analysis": 0}
+    stats = {"papers": 0, "with_abstract": 0, "abstract_blocked": 0, "with_analysis": 0, "off_topic": 0}
 
     for p in papers:
         pid = clean_text(p["id"]).lower()
         if not re.fullmatch(r"[0-9a-f]{16}", pid):
             continue  # ids are sha1 prefixes; anything else is skipped, not guessed
+        topics = clean_list(_json(p.get("topics"), []))
+        if any(OFF_TOPIC.match(t) for t in topics):
+            stats["off_topic"] += 1
+            continue  # not seismology: not published at all
         a = analyses.get(p["id"]) or {}
         payload = _json(a.get("payload"), {})
         doi = bare_doi(p.get("doi"))
@@ -332,7 +340,7 @@ def build(db_path: Path, *, abstracts_mode: str, include_group: bool) -> Dict[st
             "doi": doi,
             "url": link,
             "src": clean_text(p.get("source")),
-            "tp": clean_list(_json(p.get("topics"), [])) or ["Others"],
+            "tp": topics or ["Others"],
             "in": clean_institutions(_json(p.get("institutions"), [])),
             "kw": keywords,
             "rel": relevance,
@@ -420,7 +428,8 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
 
     print(f"papers: {result['stats']['papers']}  with abstract: {result['stats']['with_abstract']}  "
           f"abstracts withheld by blocklist: {result['stats']['abstract_blocked']}  "
-          f"with AI analysis: {result['stats']['with_analysis']}")
+          f"with AI analysis: {result['stats']['with_analysis']}  "
+          f"left out as off-topic: {result['stats']['off_topic']}")
     print(f"abstract mode: {args.abstracts}  group follow-ups: {'included' if args.include_group_followups else 'excluded'}")
     sizes = {path: len(text.encode("utf-8")) for path, text in files.items()}
     for name in ("papers.json", "abstracts.json"):

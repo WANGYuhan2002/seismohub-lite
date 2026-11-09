@@ -39,6 +39,7 @@ What the site does **not** have:
 | `tools/check_site.py` | End-to-end check in headless Chrome. `--base <url>` tests the live site. |
 | `tools/privacy_scan.py` | Privacy scan to run before every publish |
 | `tools/update.py` | Runs export, check and scan in one go, then shows the diff. Never pushes. |
+| `tools/auto_publish.py` | Daily automatic publish, run by a LaunchAgent. Pushes only if every check passes. |
 | `tools/abstract_blocklist.txt` | Abstracts to withhold, for takedown requests |
 | `tools/privacy_allowlist.txt` | Strings the scan may let through after human review, each with a reason |
 
@@ -67,9 +68,53 @@ reads only whitelisted columns. It never exports the following:
 - the AI chat
 - verbatim figure-caption excerpts
 - the AI's group-specific follow-up suggestions
+- papers the app's topic classifier labels "Off-topic / not seismology"
 
 To export those suggestions anyway, pass `--include-group-followups`. The
 privacy scan blocks them by default.
+
+## Automatic daily publish
+
+Since 2026-11-09 the snapshot also updates itself once a day. A LaunchAgent on
+the owner's Mac runs `tools/auto_publish.py` every day at 21:00 local time.
+
+- If the Mac is asleep at that time, the job runs when it wakes.
+- If the Mac is switched off, that day is skipped and the next run catches up.
+
+A run publishes only if the app has finished a new successful fetch and every
+one of these checks passes:
+
+- the export (read-only)
+- the data files and JSON field paths match the live snapshot exactly
+- paper count, total size and string length stay within limits
+- no AI analysis was made from a PDF, and every source label has been
+  published before
+- `check_site.py` passes, and `privacy_scan.py` reports CLEAN
+- the commit changes `docs/data/` only
+- after the push, `check_site.py --base` passes on the live site
+
+If any check fails, nothing is pushed. A macOS notification appears and the
+reason goes to `$HOME/Library/Logs/SeismoHubLite/auto_publish.log`. The job
+needs no API key.
+
+```bash
+python3 tools/auto_publish.py --status     # schedule, pause state, last results
+python3 tools/auto_publish.py --pause      # later runs do nothing until --resume
+python3 tools/auto_publish.py --resume
+python3 tools/auto_publish.py --run-now    # start the daily job now
+python3 tools/auto_publish.py --uninstall  # remove the LaunchAgent
+```
+
+`--pause` only creates the file `local/AUTO_PUBLISH_PAUSED`, so deleting that
+file resumes too.
+
+To install it again or change the time, run:
+
+```bash
+python3 tools/auto_publish.py --install --db <path-to>/seismo_hub.db --env-file <path-to>/.env --env-file <path-to>/old.env --at 21:00
+```
+
+Manual publishes work as before: run `update.py`, review the diff, then push.
 
 ## Copyright and takedown
 
@@ -109,12 +154,26 @@ storage. As the host, GitHub may keep standard server logs.
 更新步骤：
 
 1. 运行 `tools/update.py`。它会依次做三件事，任何一步失败就停下：
-   - 导出：只读打开 `seismo_hub.db`，只取白名单字段。
+   - 导出：只读打开 `seismo_hub.db`，只取白名单字段；被标为“离题 / 非地震学”的文章不导出。
    - 页面检查。
    - 隐私扫描：结果必须是 `RESULT: CLEAN`。
 2. 查看改动。
 3. 提交，然后推送。
 4. 推送大约一分钟后，用 `check_site.py --base <网址>` 检查线上页面。
 
-推送就等于公开发布。每次推送前，先确认扫描结果和改动内容。如果收到删除摘要的请求，在
+推送就等于公开发布。手动推送前，先确认扫描结果和改动内容。如果收到删除摘要的请求，在
 `tools/abstract_blocklist.txt` 里加上对应的 DOI 或期刊，再重新导出。
+
+每日自动发布：
+
+- 每天 21:00（本机时间），LaunchAgent 运行 `tools/auto_publish.py`。
+  - Mac 在睡眠：唤醒后补跑。
+  - Mac 关机：当天跳过，下一次运行会把内容补上。
+- 推送需要两个条件：App 有一次新的成功抓取，并且上面列出的检查全部通过。
+  - 自动发布用这些检查代替人工看改动。
+  - 任何一项没通过就不推送：系统会弹出通知，原因写进
+    `$HOME/Library/Logs/SeismoHubLite/auto_publish.log`。
+- 暂停：运行 `python3 tools/auto_publish.py --pause`，或者在 `local/` 里新建一个名为
+  `AUTO_PUBLISH_PAUSED` 的文件。
+- 恢复：运行 `--resume`，或者删掉这个文件。
+- 查看状态用 `--status`，立即跑一次用 `--run-now`，彻底停用用 `--uninstall`。
