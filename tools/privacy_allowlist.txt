@@ -1,0 +1,6 @@
+# Exact strings that tools/privacy_scan.py may let through after a human review.
+# One entry per line, then "#" and the reason it is safe to publish.
+# Secret patterns and env-file values can never be allowlisted.
+
+TX_information.pdf  # file name quoted inside the public abstract of an ETH Research Collection dataset record; not a local PDF
+C4_TA3_82_1_1_FZCOWI_Report.pdf  # same public dataset abstract (paper id 55d3fbd57c989578) names this report file; not a local PDF

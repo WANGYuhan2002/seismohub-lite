@@ -1,0 +1,14 @@
+# local-only files: never publish
+.claude/
+.DS_Store
+__pycache__/
+*.pyc
+*.db
+*.db-*
+*.sqlite*
+*.pdf
+.env
+.env.*
+*.env
+local/
+docs/data/.tmp-*

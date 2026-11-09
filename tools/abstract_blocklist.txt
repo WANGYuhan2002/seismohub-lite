@@ -1,0 +1,9 @@
+# Abstracts listed here are NOT published (the paper itself stays listed).
+# Use this for takedown requests from rights holders.
+#
+# One entry per line:
+#   10.1234/example.doi          -> hide the abstract of this DOI
+#   journal:Tectonophysics       -> hide every abstract from this journal
+# Lines starting with # are comments.
+#
+# After editing, re-run tools/export_lite.py, then the checks, then publish.

@@ -1,0 +1,1035 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="SeismoHub Lite: a static, searchable snapshot of recent seismology papers with their abstracts and offline-generated AI summaries.">
+<title>SeismoHub Lite</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231d5bd8'/%3E%3Cpath d='M3 17h5l3-8 4 15 3-11 2 4h9' fill='none' stroke='white' stroke-width='2.4' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#f4f6f9;--surface:#fff;--surface-2:#f1f3f7;--text:#111827;--muted:#566074;--faint:#8a93a4;
+  --line:#e2e6ec;--line-2:#d2d8e1;--accent:#1d5bd8;--accent-2:#174bb4;--accent-soft:#e9f0ff;--on-accent:#fff;
+  --ai:#6b35c9;--ai-soft:#f4efff;--ai-line:#e2d6fb;--mark:#fde68a;--mark-text:#111827;
+  --shadow:0 1px 2px rgba(17,24,39,.05),0 8px 24px rgba(17,24,39,.06);
+  --chip-s:80%;--chip-l:94%;--chip-fs:50%;--chip-fl:28%;--edge-s:65%;--edge-l:52%;
+  --radius:14px;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0c1016;--surface:#141a22;--surface-2:#1b222c;--text:#e7eaf0;--muted:#a6afbd;--faint:#7f8898;
+    --line:#26303c;--line-2:#334050;--accent:#7aa5ff;--accent-2:#9bbcff;--accent-soft:#18243b;--on-accent:#0c1016;
+    --ai:#bba2ff;--ai-soft:#201a31;--ai-line:#3a2d5c;--mark:#77621a;--mark-text:#fff;
+    --shadow:none;
+    --chip-s:35%;--chip-l:20%;--chip-fs:70%;--chip-fl:82%;--edge-s:55%;--edge-l:60%;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;overflow-wrap:break-word;background:var(--bg);color:var(--text);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif}
+a{color:var(--accent)}
+button,input,select{font:inherit;color:inherit}
+[hidden]{display:none!important}
+.skip{position:absolute;left:-999px;top:0}
+.skip:focus{left:8px;top:8px;z-index:100;background:var(--surface);padding:6px 10px;border-radius:8px}
+.top{position:sticky;top:0;z-index:30;background:var(--bg);border-bottom:1px solid var(--line)}
+@supports ((backdrop-filter:blur(8px)) or (-webkit-backdrop-filter:blur(8px))){
+  .top{background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+}
+.top-inner{max-width:1240px;margin:0 auto;padding:10px 16px 12px;display:flex;flex-wrap:wrap;align-items:center;gap:10px 12px}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto;min-width:0}
+.logo{width:34px;height:34px;flex:none}
+.brand-name{font-weight:800;font-size:18px;letter-spacing:-.01em;line-height:1.15}
+.brand-name span{color:var(--accent)}
+.brand-sub{font-size:12.5px;color:var(--muted)}
+.top-actions{display:flex;gap:6px}
+.searchrow{display:flex;gap:8px;width:100%}
+.search{flex:1;min-width:0;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line-2);border-radius:12px;padding:0 12px;height:44px}
+.search:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.search svg{width:18px;height:18px;color:var(--faint);flex:none}
+.search input{flex:1;min-width:0;border:0;outline:0;background:transparent;height:100%;font-size:16px}
+select{height:44px;border:1px solid var(--line-2);border-radius:12px;background:var(--surface);padding:0 10px;max-width:42vw}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface);cursor:pointer;font-size:13.5px;font-weight:600;text-decoration:none;color:var(--text);white-space:nowrap}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.primary:hover{background:var(--accent-2);border-color:var(--accent-2);color:var(--on-accent)}
+.btn.ghost{background:transparent}
+.btn.small{height:30px;padding:0 11px;font-size:12.5px}
+.btn svg{width:15px;height:15px;flex:none}
+.icon-btn{width:36px;height:36px;flex:none;border-radius:999px;border:1px solid var(--line-2);background:var(--surface);cursor:pointer;font-size:20px;line-height:1;display:inline-flex;align-items:center;justify-content:center;color:var(--text)}
+.icon-btn:hover{border-color:var(--accent);color:var(--accent)}
+.filters-toggle{display:none;height:44px;border-radius:12px}
+.filters-toggle .badge{background:var(--accent);color:var(--on-accent);border-radius:999px;font-size:11px;padding:1px 7px}
+.layout{max-width:1240px;margin:0 auto;padding:18px 16px 40px;display:grid;grid-template-columns:270px minmax(0,1fr);gap:22px;align-items:start}
+.filters{position:sticky;top:var(--top-h,124px);max-height:calc(100vh - var(--top-h,124px) - 12px);overflow:auto;padding-right:4px;overscroll-behavior:contain}
+.filters-head,.filters-foot{display:none}
+.facet{border-bottom:1px solid var(--line);padding:4px 0}
+.facet>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:9px 2px;font-weight:700;font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.facet>summary::-webkit-details-marker{display:none}
+.facet>summary::after{content:"";width:7px;height:7px;border-right:2px solid var(--faint);border-bottom:2px solid var(--faint);transform:rotate(-45deg);transition:transform .15s;margin-left:auto}
+.facet[open]>summary::after{transform:rotate(45deg)}
+.facet .badge{background:var(--accent);color:var(--on-accent);border-radius:999px;font-size:11px;padding:1px 7px;letter-spacing:0}
+.fsearch{width:100%;height:34px;border:1px solid var(--line-2);border-radius:8px;background:var(--surface);padding:0 9px;margin:0 0 6px;font-size:14px}
+.fvals{display:flex;flex-direction:column;gap:1px;padding-bottom:6px}
+.fval{display:flex;align-items:flex-start;gap:8px;padding:5px 6px;border-radius:8px;cursor:pointer;font-size:13.5px;line-height:1.35}
+.fval:hover{background:var(--surface-2)}
+.fval input{margin:2px 0 0;accent-color:var(--accent);flex:none}
+.fval .v{flex:1;min-width:0;overflow-wrap:anywhere}
+.fval .n{color:var(--faint);font-size:12px;font-variant-numeric:tabular-nums}
+.fval.on{background:var(--accent-soft)}
+.fval.zero .v{color:var(--faint)}
+.fhint{font-size:12px;color:var(--faint);padding:2px 6px 6px}
+.resultbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px;min-height:30px}
+.count{font-weight:700;font-size:14px;margin-right:4px}
+.active{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+.achip{display:inline-flex;align-items:center;gap:5px;min-height:28px;padding:2px 6px 2px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent);border:0;font-size:12.5px;font-weight:600;cursor:pointer;max-width:100%;text-align:left}
+.achip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px}
+.achip b{font-weight:500;opacity:.8}
+.achip i{font-style:normal;font-size:16px;line-height:1;padding:0 3px}
+.linkish{background:none;border:0;color:var(--accent);cursor:pointer;font-size:12.5px;font-weight:600;padding:4px;text-decoration:underline;text-underline-offset:2px}
+.list{display:flex;flex-direction:column;gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-left:4px solid hsl(var(--h,215) var(--edge-s) var(--edge-l));border-radius:var(--radius);padding:16px 18px 14px;box-shadow:var(--shadow)}
+.card.gray{border-left-color:var(--line-2)}
+.card-head{display:flex;align-items:flex-start;gap:12px}
+.meta{font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--accent);flex:1;min-width:0;padding-top:2px;overflow-wrap:anywhere}
+.meta .date{color:var(--muted);font-weight:600;letter-spacing:.03em}
+.rel{flex:none;text-align:right;line-height:1;cursor:help}
+.rel span{display:block;font-size:9.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+.rel b{display:block;font-size:22px;font-weight:800;margin-top:3px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{display:inline-flex;align-items:center;max-width:100%;border:0;border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:600;line-height:1.4;cursor:pointer;text-align:left;overflow-wrap:anywhere}
+.chip.t{background:hsl(var(--h,215) var(--chip-s) var(--chip-l));color:hsl(var(--h,215) var(--chip-fs) var(--chip-fl))}
+.chip.t.gray{background:var(--surface-2);color:var(--muted)}
+.chip.k{background:var(--ai-soft);color:var(--ai)}
+.chip.f{background:var(--surface-2);color:var(--muted);border-radius:6px}
+.chip.sel{outline:2px solid var(--accent);outline-offset:1px}
+.chip:hover{filter:brightness(.95)}
+.title{margin:10px 0 6px;font-size:19px;line-height:1.3;font-weight:750;letter-spacing:-.005em;overflow-wrap:anywhere}
+.title a{color:var(--text);text-decoration:none}
+.title a:hover{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+.authors{font-size:13.5px;color:var(--muted)}
+.authors .more{color:var(--faint);white-space:nowrap}
+.inst{display:flex;gap:6px;align-items:flex-start;font-size:12.5px;color:var(--faint);margin-top:4px}
+.inst svg{width:13px;height:13px;flex:none;margin-top:3px}
+.takeaway{margin:10px 0 0;font-size:14px;background:var(--ai-soft);border:1px solid var(--ai-line);border-radius:10px;padding:8px 10px}
+.ai-badge{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--ai);border:1px solid var(--ai-line);background:var(--surface);border-radius:5px;padding:0 5px;margin-right:6px;vertical-align:1px;cursor:help}
+.absd{margin-top:10px;border-top:1px dashed var(--line);padding-top:8px}
+.absd>summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--muted);list-style:none;display:inline-flex;align-items:center;gap:6px}
+.absd>summary::-webkit-details-marker{display:none}
+.absd>summary::before{content:"\25B8";font-size:11px;transition:transform .15s}
+.absd[open]>summary::before{transform:rotate(90deg)}
+.abs{font-size:14px;line-height:1.62;margin:8px 0 2px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;align-items:center}
+mark{background:var(--mark);color:var(--mark-text);border-radius:3px;padding:0 1px}
+.empty{background:var(--surface);border:1px dashed var(--line-2);border-radius:var(--radius);padding:36px 20px;text-align:center;color:var(--muted)}
+.empty p{margin:6px 0 0}
+.more-wrap{display:flex;justify-content:center;margin-top:18px}
+#sentinel{height:1px}
+.foot{border-top:1px solid var(--line);color:var(--muted);font-size:12.5px;line-height:1.6}
+.foot-inner{max-width:1240px;margin:0 auto;padding:20px 16px 34px;display:grid;gap:8px}
+.foot p{margin:0}
+.foot strong{color:var(--text)}
+.foot .links{display:flex;flex-wrap:wrap;gap:4px 16px}
+.foot .links button{background:none;border:0;padding:0;color:var(--accent);cursor:pointer;font-size:12.5px;text-decoration:underline;text-underline-offset:2px}
+dialog{border:1px solid var(--line);border-radius:18px;padding:0;background:var(--surface);color:var(--text);width:min(940px,calc(100vw - 32px));max-width:none;max-height:calc(100vh - 32px);box-shadow:0 30px 80px rgba(0,0,0,.35);overflow:hidden}
+dialog[open]{display:flex;flex-direction:column}
+dialog::backdrop{background:rgba(8,12,20,.55)}
+.dlg-bar{display:flex;align-items:center;gap:10px;padding:10px 12px 10px 18px;border-bottom:1px solid var(--line);background:var(--surface);flex:none}
+.dlg-bar .kicker{flex:1;min-width:0;font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dlg-bar .actions{margin:0;flex-wrap:nowrap}
+.dlg-body{overflow:auto;padding:18px 20px 28px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;flex:1;min-height:0}
+.d-title{font-size:23px;line-height:1.28;margin:10px 0 8px;font-weight:780;overflow-wrap:anywhere}
+.d-authors{font-size:14px;color:var(--muted)}
+.d-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
+.d-actions .rel{margin-left:auto}
+.sec{margin-top:14px;border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:var(--surface)}
+.sec h3{margin:0 0 8px;font-size:11.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);font-weight:800}
+.sec p{margin:0}
+.sec ul{margin:0;padding-left:20px}
+.sec li{margin:3px 0}
+.sec.ai{border-color:var(--ai-line)}
+.sec.ai h3{color:var(--ai)}
+.aiwrap{margin-top:20px;border-top:2px solid var(--ai-line);padding-top:4px}
+.notice{display:flex;gap:6px;align-items:flex-start;font-size:13px;line-height:1.5;border-radius:12px;padding:10px 12px;margin-top:12px}
+.notice.ai{background:var(--ai-soft);border:1px solid var(--ai-line)}
+.notice.cr{background:var(--surface-2);border:1px solid var(--line);color:var(--muted);font-size:12.5px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.pill{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--surface-2);font-size:14px}
+.pill b{display:block;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.pill small{display:block;color:var(--faint);margin-top:6px;font-size:11.5px}
+.tm{border:1px solid var(--line);border-radius:12px;padding:9px 12px;background:var(--surface-2)}
+.tm-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-weight:700;font-size:13.5px}
+.tm-h span{color:var(--accent);font-size:12px;white-space:nowrap}
+.tm p{font-size:13px;color:var(--muted);margin-top:3px}
+.kv{display:grid;grid-template-columns:120px minmax(0,1fr);gap:7px 12px;font-size:13.5px;align-items:start;margin:0}
+.kv dt{color:var(--faint);font-weight:700;font-size:11px;letter-spacing:.12em;text-transform:uppercase;padding-top:3px}
+.kv dd{margin:0;display:flex;flex-wrap:wrap;gap:5px;overflow-wrap:anywhere}
+.fig{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:8px}
+.fig:first-of-type{margin-top:0}
+.fig h4{margin:0 0 4px;font-size:13.5px}
+.fig p{font-size:13.5px;margin:4px 0 0}
+.muted{color:var(--muted)}
+.loading{color:var(--muted);font-size:14px;padding:14px 2px}
+.prose h3{font-size:14.5px;margin:18px 0 4px}
+.prose h3:first-child{margin-top:0}
+.prose p{margin:4px 0 8px;font-size:14px;line-height:1.65}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:8px 14px;border-radius:999px;font-size:13px;z-index:100;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+@media (max-width:900px){
+  .layout{grid-template-columns:minmax(0,1fr);padding-top:14px}
+  .filters-toggle{display:inline-flex}
+  .filters{position:fixed;inset:0;z-index:50;max-height:none;background:var(--bg);padding:0 16px 96px;transform:translateX(-102%);transition:transform .2s ease;visibility:hidden}
+  .filters.open{transform:none;visibility:visible}
+  .filters-head{display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--bg);padding:14px 0 10px;border-bottom:1px solid var(--line);z-index:1;font-size:16px}
+  .filters-foot{display:flex;gap:10px;position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:var(--bg);border-top:1px solid var(--line)}
+  .filters-foot .btn{flex:1;height:44px}
+  body.lock{overflow:hidden}
+}
+@media (max-width:640px){
+  .top-inner{padding:8px 12px 10px}
+  .brand-sub{font-size:11.5px}
+  .layout{padding:12px 12px 32px}
+  .card{padding:14px 14px 12px}
+  .title{font-size:17px}
+  select{max-width:36vw;padding:0 6px}
+  dialog{width:100%;max-width:100%;height:100%;max-height:100%;margin:0;border-radius:0;border:0}
+  .dlg-body{padding:14px 14px 32px}
+  .d-title{font-size:20px}
+  .kv{grid-template-columns:minmax(0,1fr)}
+  .kv dd{margin-bottom:6px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<a class="skip" href="#list">Skip to results</a>
+<header class="top" id="top">
+  <div class="top-inner">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#1d5bd8"/><path d="M3 17h5l3-8 4 15 3-11 2 4h9" fill="none" stroke="#fff" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/></svg>
+      <div>
+        <div class="brand-name">SeismoHub <span>Lite</span></div>
+        <div class="brand-sub" id="stats">&nbsp;</div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button class="btn ghost" id="langBtn" type="button" lang="zh-CN">中文</button>
+      <button class="btn ghost" id="aboutBtn" type="button">About</button>
+    </div>
+    <div class="searchrow">
+      <label class="search" for="q">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+        <input id="q" type="search" autocomplete="off" spellcheck="false" enterkeyhint="search">
+      </label>
+      <select id="sort"></select>
+      <button class="btn filters-toggle" id="filtersBtn" type="button" aria-controls="filters" aria-expanded="false"></button>
+    </div>
+  </div>
+</header>
+<div class="layout">
+  <aside class="filters" id="filters">
+    <div class="filters-head"><strong id="filtersTitle">Filters</strong><button class="icon-btn" id="filtersClose" type="button" aria-label="Close">&times;</button></div>
+    <div id="facets"></div>
+    <div class="filters-foot"><button class="btn" id="clearAllMobile" type="button">Clear all</button><button class="btn primary" id="showResults" type="button">Show</button></div>
+  </aside>
+  <main class="results" id="results">
+    <div class="resultbar"><div id="count" class="count" aria-live="polite"></div><div id="active" class="active"></div></div>
+    <div id="list" class="list" tabindex="-1"><div class="loading">Loading papers…</div></div>
+    <div id="sentinel"></div>
+    <div class="more-wrap"><button class="btn" id="more" type="button" hidden></button></div>
+  </main>
+</div>
+<footer class="foot"><div class="foot-inner" id="foot"></div></footer>
+
+<dialog id="detail" aria-labelledby="dTitle">
+  <div class="dlg-bar">
+    <span class="kicker" id="dKicker"></span>
+    <div class="actions">
+      <button class="btn ghost small" id="dCopy" type="button">Copy link</button>
+      <button class="icon-btn" id="dClose" type="button" aria-label="Close" autofocus>&times;</button>
+    </div>
+  </div>
+  <div class="dlg-body" id="dBody"></div>
+</dialog>
+
+<dialog id="about" aria-labelledby="aTitle">
+  <div class="dlg-bar">
+    <span class="kicker" id="aTitle">About</span>
+    <div class="actions"><button class="icon-btn" id="aClose" type="button" aria-label="Close">&times;</button></div>
+  </div>
+  <div class="dlg-body prose" id="aBody"></div>
+</dialog>
+
+<div class="toast" id="toast" role="status"></div>
+<noscript><p style="max-width:640px;margin:20px auto;padding:0 16px">This page needs JavaScript to load, search and filter the paper list.</p></noscript>
+
+<script>
+(() => {
+'use strict';
+
+/* ------------------------------------------------------------------ config */
+const REPO_URL = 'https://github.com/WANGYuhan2002/seismohub-lite';
+const ISSUES_URL = REPO_URL + '/issues';
+const BATCH = 40;
+const LS_LANG = 'seismohub-lite:lang';
+const SORTS = ['new', 'rel', 'old', 'title'];
+const GRAY_TOPICS = new Set(['Off-topic / not seismology', 'Unable to categorize', 'Others']);
+const SOURCE_NAMES = { crossref: 'Crossref', openalex: 'OpenAlex', arxiv: 'arXiv', eth_rc: 'ETH Research Collection', rss: 'publisher RSS feed' };
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+const FACETS = [
+  { key: 'topic', get: p => p.tp, open: true },
+  { key: 'journal', get: p => [p.j], search: true, limit: 25, open: true },
+  { key: 'year', get: p => (p.d ? [p.d.slice(0, 4)] : []), order: 'value' },
+  { key: 'month', get: p => (p.d && p.d.length >= 7 ? [p.d.slice(0, 7)] : []), order: 'value', fmt: v => fmtMonth(v) },
+  { key: 'keyword', get: p => p._kwl, search: true, limit: 25 },
+  { key: 'institution', get: p => p.in, search: true, limit: 25 },
+  { key: 'method', get: p => p.fc.m },
+  { key: 'data', get: p => p.fc.dt },
+  { key: 'target', get: p => p.fc.tg },
+  { key: 'role', get: p => (p.fc.r ? [p.fc.r] : []) },
+];
+
+/* ------------------------------------------------------------------ i18n */
+const I18N = {
+  en: {
+    searchPh: 'Search title, authors, abstract, journal, keywords, DOI…',
+    sort_new: 'Newest', sort_rel: 'Relevance', sort_old: 'Oldest', sort_title: 'Title A–Z', sortLabel: 'Sort',
+    filters: 'Filters', clearAll: 'Clear all', about: 'About', langBtn: '中文', search: 'Search',
+    stats: (n, d) => `${n} papers · snapshot ${d}`,
+    count: (n, total) => (n === total ? `${total} papers` : `${n} of ${total} papers`),
+    showN: n => `Show ${n} papers`,
+    f_topic: 'Topic', f_journal: 'Journal', f_year: 'Year', f_month: 'Month', f_keyword: 'Keyword',
+    f_institution: 'Institution', f_method: 'Method', f_data: 'Data', f_target: 'Target', f_role: 'Paper type',
+    fsearch: 'Filter this list…', fmore: n => `${n} more — type above to narrow`, fnone: 'No matches',
+    remove: 'Remove filter', filterBy: v => `Filter by “${v}”`,
+    relevance: 'Relevance', relTip: 'AI-assigned relevance score (0–10) for the curator’s research topics',
+    aiTip: 'Generated offline by AI — may contain errors',
+    openDetail: 'Abstract & AI analysis', doi: 'DOI', link: 'Link',
+    abstract: 'Abstract', noAbstract: 'No abstract is available for this paper.', abstractWithheld: 'The abstract is not shown for this paper.',
+    abstractNote: src => `Abstract © the authors and/or publisher, reproduced from public metadata${src ? ` (via ${src})` : ''} for non-commercial scholarly reference. Please read and cite the original article.`,
+    moreAuthors: n => `+${n} more`, allAuthors: n => `Show all ${n} authors`,
+    noResults: 'No papers match the current search and filters.',
+    loadMore: n => `Load more (${n} left)`,
+    loadingAI: 'Loading AI analysis…', aiFail: 'Could not load the AI analysis. Check your connection and try again.', noAI: 'No AI analysis is stored for this paper.',
+    aiBanner: m => `Everything below was generated offline by ${m || 'an AI model'} from the abstract and public metadata. It may contain errors and is not endorsed by the authors or the publisher — always check the original article.`,
+    sec_takeaway: 'One-sentence takeaway', sec_structured: 'Structured analysis', sec_summary: 'AI summary',
+    sec_kc: 'Key contributions', sec_me: 'Methods', sec_de: 'Data & experiments', sec_fig: 'Figures',
+    sec_li: 'Limitations', sec_tm: 'Topic match', sec_facets: 'Facets', sec_fu: 'AI follow-up ideas for the curator’s group', sec_ev: 'Evidence',
+    sa_method: 'Method', sa_data: 'Data', sa_results: 'Results', sa_limitations: 'Limitations', sa_novelty: 'Novelty',
+    saSource: s => `Source: ${s}`, confidence: 'confidence',
+    ev_on: 'Based on', ev_sources: 'Used sources', ev_model: 'Model', ev_notes: 'Notes',
+    fig_desc: 'What it shows', fig_interp: 'Interpretation', fig_finding: 'Key finding', fig_cap: 'Caption (summary)', fig_rel: 'Relevance to the group',
+    copyLink: 'Copy link', copied: 'Link copied', close: 'Close',
+    loadError: 'Could not load the paper data.',
+    loadHint: 'If you opened this file straight from disk, serve the folder over HTTP instead, e.g. “python3 -m http.server” inside docs/.',
+    loading: 'Loading papers…',
+    foot1: (n, d) => `SeismoHub Lite · static snapshot exported ${d} · ${n} papers.`,
+    foot2: 'Titles and abstracts are © their authors and/or publishers and are shown for non-commercial scholarly reference with links to the original articles; rights holders can request removal via a GitHub issue.',
+    foot3: 'Content marked AI was generated offline with Google Gemini from abstracts and public metadata and may contain errors. No AI runs on this site. No cookies, analytics or third-party resources.',
+    footAbout: 'About & full notice', footRepo: 'Source on GitHub', footIssue: 'Report a problem / request removal',
+    aboutTitle: 'About SeismoHub Lite',
+    aboutBody: (n, d) => [
+      ['What is this?', 'SeismoHub Lite is a read-only, static snapshot of SeismoHub, a personal literature tracker for seismology and wave physics. It lists recent papers with their bibliographic metadata, original abstracts and the AI analyses that were generated offline. It contains no PDFs, and the interactive AI chat of the desktop app is not included.'],
+      ['Where the data comes from', 'Titles, authors, journals, dates, DOIs and abstracts come from public bibliographic metadata: Crossref, OpenAlex, arXiv, the ETH Research Collection and publisher RSS feeds. Journal names are lightly normalised. Abstracts are shown as provided, except that whitespace is normalised, leading “Abstract/Summary” headings are dropped and e-mail addresses are masked.'],
+      ['Copyright and takedown', 'Titles and abstracts are the work of their authors and are often © the publisher. They are reproduced here solely for non-commercial scholarly reference, each with a link to the original article; this site claims no rights in them. If you hold rights in an abstract and would like it (or a whole entry) removed, please open an issue on GitHub and it will be removed promptly.'],
+      ['AI-generated content', 'Everything marked “AI” — takeaways, summaries, structured analyses, key contributions, methods, data notes, limitations, figure notes, topic labels, keywords, facets and relevance scores — was generated offline with Google Gemini from each paper’s abstract, public metadata and web search results; no full-text PDFs were used. It may be inaccurate or incomplete, is not endorsed by the authors or publishers, and does not replace reading the paper. No AI model runs on this website and nothing you type here is sent anywhere.'],
+      ['Privacy', 'This page is plain static files served by GitHub Pages. It sets no cookies and loads no analytics, fonts, scripts or trackers from third parties; search and filtering run entirely in your browser. Only your language choice is remembered, in your browser’s local storage. As the host, GitHub may keep standard server logs (see GitHub’s privacy statement). Outbound links go straight to doi.org, arxiv.org or the publisher.'],
+      ['Snapshot', `Exported on ${d}; ${n} papers.`],
+    ],
+  },
+  zh: {
+    searchPh: '搜索标题、作者、摘要、期刊、关键词、DOI…',
+    sort_new: '最新', sort_rel: '相关度', sort_old: '最早', sort_title: '标题 A–Z', sortLabel: '排序',
+    filters: '筛选', clearAll: '全部清除', about: '关于', langBtn: 'EN', search: '搜索',
+    stats: (n, d) => `${n} 篇 · 快照日期 ${d}`,
+    count: (n, total) => (n === total ? `共 ${total} 篇` : `${n} / ${total} 篇`),
+    showN: n => `查看 ${n} 篇`,
+    f_topic: '主题', f_journal: '期刊', f_year: '年份', f_month: '月份', f_keyword: '关键词',
+    f_institution: '机构', f_method: '方法', f_data: '数据', f_target: '研究对象', f_role: '文章类型',
+    fsearch: '在列表中查找…', fmore: n => `还有 ${n} 项，可在上方输入查找`, fnone: '没有匹配项',
+    remove: '移除筛选', filterBy: v => `按“${v}”筛选`,
+    relevance: '相关度', relTip: 'AI 按整理者的研究方向给出的相关度评分（0–10）',
+    aiTip: '由 AI 离线生成，可能有误',
+    openDetail: '摘要与 AI 分析', doi: 'DOI', link: '原文链接',
+    abstract: '原文摘要', noAbstract: '这篇文章暂无摘要。', abstractWithheld: '这篇文章的摘要不予显示。',
+    abstractNote: src => `摘要版权归作者和/或出版社所有，取自公开元数据${src ? `（${src}）` : ''}，仅供非商业的学术参考。请阅读并引用原文。`,
+    moreAuthors: n => `等 ${n} 人`, allAuthors: n => `显示全部 ${n} 位作者`,
+    noResults: '没有符合当前搜索和筛选条件的文章。',
+    loadMore: n => `加载更多（还剩 ${n} 篇）`,
+    loadingAI: '正在加载 AI 分析…', aiFail: 'AI 分析加载失败，请检查网络后重试。', noAI: '这篇文章没有存储 AI 分析。',
+    aiBanner: m => `以下内容由 ${m || 'AI 模型'} 根据摘要和公开元数据离线生成，可能有误，也未经作者或出版社认可，请以原文为准。`,
+    sec_takeaway: '一句话摘要', sec_structured: '结构化分析', sec_summary: 'AI 总结',
+    sec_kc: '主要贡献', sec_me: '研究方法', sec_de: '数据与实验', sec_fig: '图表解析',
+    sec_li: '局限性', sec_tm: '主题匹配', sec_facets: '分面标签', sec_fu: 'AI 给整理者课题组的后续研究建议', sec_ev: '分析依据',
+    sa_method: '方法', sa_data: '数据', sa_results: '结果', sa_limitations: '局限', sa_novelty: '创新点',
+    saSource: s => `来源：${s}`, confidence: '置信度',
+    ev_on: '依据', ev_sources: '参考来源', ev_model: '模型', ev_notes: '说明',
+    fig_desc: '内容', fig_interp: '解读', fig_finding: '关键发现', fig_cap: '图注（概述）', fig_rel: '与课题组的关系',
+    copyLink: '复制链接', copied: '链接已复制', close: '关闭',
+    loadError: '文章数据加载失败。',
+    loadHint: '如果是直接从磁盘打开的文件，请改用 HTTP 方式访问，例如在 docs/ 目录里运行“python3 -m http.server”。',
+    loading: '正在加载文章…',
+    foot1: (n, d) => `SeismoHub Lite · 静态快照，导出于 ${d} · 共 ${n} 篇。`,
+    foot2: '标题和摘要的版权归作者和/或出版社所有，仅供非商业的学术参考，并附原文链接；权利人可通过 GitHub issue 要求删除。',
+    foot3: '标有 AI 的内容由 Google Gemini 根据摘要和公开元数据离线生成，可能有误。本站运行时不调用任何 AI，不使用 cookie、统计或第三方资源。',
+    footAbout: '关于与完整声明', footRepo: 'GitHub 源代码', footIssue: '反馈问题 / 申请删除',
+    aboutTitle: '关于 SeismoHub Lite',
+    aboutBody: (n, d) => [
+      ['这是什么？', 'SeismoHub Lite 是 SeismoHub 的只读静态快照。SeismoHub 是一个个人用的地震学与波动物理文献追踪工具。本站列出近期文章的书目信息、原文摘要，以及离线生成好的 AI 分析。本站不含 PDF，也没有桌面版里的 AI 对话功能。'],
+      ['数据来源', '标题、作者、期刊、日期、DOI 和摘要来自公开的书目元数据：Crossref、OpenAlex、arXiv、ETH Research Collection 和出版社的 RSS。期刊名做了少量归并。摘要按原样显示，只规整了空白、去掉开头的“Abstract/Summary”字样，并隐去了邮箱地址。'],
+      ['版权与删除请求', '标题和摘要是作者的作品，版权通常归出版社所有。本站转载它们仅用于非商业的学术参考，每篇都附原文链接，不对其主张任何权利。如果你是权利人，希望删除某篇摘要或整条记录，请在 GitHub 上提交 issue，我们会尽快移除。'],
+      ['AI 生成内容', '所有标有“AI”的内容，包括一句话摘要、总结、结构化分析、主要贡献、方法、数据、局限性、图表解析、主题标签、关键词、分面标签和相关度评分，都是离线用 Google Gemini 根据每篇文章的摘要、公开元数据和网络搜索结果生成的，没有使用全文 PDF。这些内容可能不准确或不完整，未经作者或出版社认可，不能代替阅读原文。本网站运行时不调用任何 AI，你在这里输入的内容也不会发送到任何地方。'],
+      ['隐私', '本页是由 GitHub Pages 托管的纯静态文件，不设置 cookie，也不加载任何第三方的统计、字体、脚本或追踪器；搜索和筛选完全在你的浏览器里进行。只有你选择的语言会保存在浏览器的本地存储里。GitHub 作为托管方可能保留常规的服务器日志（见 GitHub 隐私声明）。外链直接指向 doi.org、arxiv.org 或出版社。'],
+      ['快照', `导出于 ${d}，共 ${n} 篇。`],
+    ],
+  },
+};
+
+/* ------------------------------------------------------------------ state */
+const S = { lang: 'en', q: '', sort: 'new', sel: {}, fq: {}, p: null, pushed: false, shown: 0, tokens: [], hlRe: null, hlTest: null };
+for (const f of FACETS) { S.sel[f.key] = new Set(); S.fq[f.key] = ''; }
+const DATA = { papers: [], byId: new Map(), generated: '', ready: false };
+const HUES = new Map();
+let computed = { results: [], counts: {} };
+let lastHash = null;
+
+/* ------------------------------------------------------------------ helpers */
+const $ = (sel, root = document) => root.querySelector(sel);
+const SVGNS = 'http://www.w3.org/2000/svg';
+const T = key => { const v = I18N[S.lang][key]; return v === undefined ? I18N.en[key] : v; };
+const arr = v => (Array.isArray(v) ? v : []);
+const isZh = () => S.lang === 'zh';
+const pick = pair => { const p = arr(pair); return (isZh() && p[1]) ? p[1] : (p[0] || p[1] || ''); };
+const pickList = pair => { const p = arr(pair); const en = arr(p[0]); const zh = arr(p[1]); return (isZh() && zh.length) ? zh : (en.length ? en : zh); };
+const fmtN = n => Number(n).toLocaleString(isZh() ? 'zh-CN' : 'en-US');
+const fold = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const isGray = t => GRAY_TOPICS.has(t);
+const hueOf = t => (HUES.has(t) ? HUES.get(t) : 215);
+const collator = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
+
+function add(el, kids) {
+  for (const k of kids) {
+    if (k == null || k === false || k === '') continue;
+    if (Array.isArray(k)) add(el, k); else el.append(k);
+  }
+  return el;
+}
+// replaceChildren() would print "null" for skipped parts; put() drops them.
+function put(el, ...kids) { el.replaceChildren(); return add(el, kids); }
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  if (attrs) {
+    for (const k of Object.keys(attrs)) {
+      const v = attrs[k];
+      if (v == null || v === false) continue;
+      if (k === 'class') el.className = v;
+      else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
+      else el.setAttribute(k, v === true ? '' : String(v));
+    }
+  }
+  return add(el, kids);
+}
+const ICONS = {
+  ext: 'M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5',
+  building: 'M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16M15 9h4a1 1 0 0 1 1 1v11M3 21h18M8 8h3M8 12h3M8 16h3',
+  spark: 'M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2-2.2-.8 2.2-.8z',
+  filter: 'M4 5h16l-6 8v5l-4 2v-7z',
+};
+function icon(name) {
+  const s = document.createElementNS(SVGNS, 'svg');
+  s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor');
+  s.setAttribute('stroke-width', '2'); s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round');
+  s.setAttribute('aria-hidden', 'true');
+  const p = document.createElementNS(SVGNS, 'path'); p.setAttribute('d', ICONS[name]); s.append(p);
+  return s;
+}
+function fmtDate(d) {
+  if (!d) return '';
+  if (d.length < 10) return d.length === 7 ? fmtMonth(d) : d;
+  if (isZh()) return d;
+  const m = Number(d.slice(5, 7));
+  return `${Number(d.slice(8, 10))} ${MONTHS[m - 1] || ''} ${d.slice(0, 4)}`;
+}
+function fmtMonth(v) {
+  const m = Number(String(v).slice(5, 7));
+  if (!m) return String(v);
+  return isZh() ? `${v.slice(0, 4)} 年 ${m} 月` : `${MONTHS[m - 1]} ${v.slice(0, 4)}`;
+}
+function hl(text) {
+  text = String(text || '');
+  const re = S.hlRe;
+  if (!re || !text) return document.createTextNode(text);
+  const frag = document.createDocumentFragment();
+  let last = 0; let m;
+  re.lastIndex = 0;
+  while ((m = re.exec(text))) {
+    if (!m[0]) { re.lastIndex++; continue; }
+    if (m.index > last) frag.append(text.slice(last, m.index));
+    frag.append(h('mark', null, m[0]));
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) frag.append(text.slice(last));
+  return frag;
+}
+function tokenize(q) {
+  const out = []; const re = /"([^"]+)"|(\S+)/g; let m;
+  while ((m = re.exec(q))) out.push(m[1] || m[2]);
+  return out.map(s => s.trim()).filter(Boolean).slice(0, 12);
+}
+function hay(p) {
+  if (p._hay == null) p._hay = fold([p.t, p.a.join(' '), p.ab, p.j, p.kw.join(' '), p.doi].join('\n'));
+  return p._hay;
+}
+function safeHttp(u) { return typeof u === 'string' && /^https?:\/\/[^\s]+$/i.test(u) ? u : ''; }
+function doiUrl(doi) { return 'https://doi.org/' + String(doi).split('/').map(encodeURIComponent).join('/'); }
+let toastTimer = 0;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1800); }
+
+/* ------------------------------------------------------------------ elements */
+const topEl = $('#top'); const qInput = $('#q'); const sortSel = $('#sort'); const filtersBtn = $('#filtersBtn');
+const filtersEl = $('#filters'); const facetsEl = $('#facets'); const listEl = $('#list'); const countEl = $('#count');
+const activeEl = $('#active'); const moreBtn = $('#more'); const statsEl = $('#stats');
+const dlg = $('#detail'); const dBody = $('#dBody'); const dKicker = $('#dKicker');
+const aboutDlg = $('#about'); const aBody = $('#aBody');
+
+/* ------------------------------------------------------------------ data */
+function init(doc) {
+  DATA.generated = String(doc.generated || '');
+  const raw = arr(doc.papers);
+  const topicCount = new Map();
+  for (const p of raw) {
+    if (!p || !/^[0-9a-f]{16}$/.test(p.id)) continue;
+    p.t = String(p.t || 'Untitled'); p.a = arr(p.a); p.j = String(p.j || 'Others'); p.d = String(p.d || '');
+    p.doi = String(p.doi || ''); p.url = safeHttp(p.url); p.tp = arr(p.tp).length ? arr(p.tp) : ['Others'];
+    p.in = arr(p.in); p.kw = arr(p.kw); p.tk = arr(p.tk); p.ab = String(p.ab || ''); p.rel = Number(p.rel) || 0;
+    p.fc = p.fc || {}; p.fc.m = arr(p.fc.m); p.fc.dt = arr(p.fc.dt); p.fc.tg = arr(p.fc.tg); p.fc.r = String(p.fc.r || '');
+    p._kwl = [...new Set(p.kw.map(k => String(k).toLowerCase()))];
+    p._dk = p.d.length === 4 ? p.d + '-00-00' : p.d;
+    p._f = {};
+    for (const f of FACETS) p._f[f.key] = f.get(p);
+    DATA.papers.push(p);
+    DATA.byId.set(p.id, p);
+    for (const t of p.tp) topicCount.set(t, (topicCount.get(t) || 0) + 1);
+  }
+  [...topicCount.entries()].filter(([t]) => !isGray(t)).sort((a, b) => b[1] - a[1])
+    .forEach(([t], i) => HUES.set(t, Math.round((212 + i * 137.508) % 360)));
+  DATA.ready = true;
+}
+
+function compute() {
+  const P = DATA.papers; const n = P.length;
+  const toks = S.tokens.map(fold);
+  const fOk = {};
+  for (const f of FACETS) {
+    const sel = S.sel[f.key];
+    if (!sel.size) { fOk[f.key] = null; continue; }
+    const ok = new Uint8Array(n);
+    for (let i = 0; i < n; i++) { for (const v of P[i]._f[f.key]) { if (sel.has(v)) { ok[i] = 1; break; } } }
+    fOk[f.key] = ok;
+  }
+  const counts = {}; for (const f of FACETS) counts[f.key] = new Map();
+  const bump = (key, vals) => { const m = counts[key]; for (const v of vals) m.set(v, (m.get(v) || 0) + 1); };
+  const results = [];
+  for (let i = 0; i < n; i++) {
+    const p = P[i];
+    if (toks.length) { const hs = hay(p); if (!toks.every(t => hs.includes(t))) continue; }
+    let fails = 0; let failKey = null;
+    for (const f of FACETS) { const ok = fOk[f.key]; if (ok && !ok[i]) { fails++; failKey = f.key; if (fails > 1) break; } }
+    if (fails === 0) { results.push(p); for (const f of FACETS) bump(f.key, p._f[f.key]); }
+    else if (fails === 1) bump(failKey, p._f[failKey]);
+  }
+  const byDate = (a, b) => (a._dk < b._dk ? 1 : a._dk > b._dk ? -1 : (a.id < b.id ? -1 : 1));
+  if (S.sort === 'old') results.sort((a, b) => byDate(b, a));
+  else if (S.sort === 'rel') results.sort((a, b) => (b.rel - a.rel) || byDate(a, b));
+  else if (S.sort === 'title') results.sort((a, b) => collator.compare(a.t, b.t) || byDate(a, b));
+  else results.sort(byDate);
+  return { results, counts };
+}
+
+/* ------------------------------------------------------------------ render: list */
+function relNode(p) {
+  return h('div', { class: 'rel', title: T('relTip') }, h('span', null, T('relevance')), h('b', null, String(p.rel)));
+}
+function topicChip(t) {
+  const b = h('button', { class: 'chip t' + (isGray(t) ? ' gray' : '') + (S.sel.topic.has(t) ? ' sel' : ''), type: 'button', 'data-facet': 'topic', 'data-value': t, title: T('filterBy')(t) }, t);
+  if (!isGray(t)) b.style.setProperty('--h', hueOf(t));
+  return b;
+}
+function kwChip(k) {
+  const v = String(k).toLowerCase();
+  return h('button', { class: 'chip k' + (S.sel.keyword.has(v) ? ' sel' : ''), type: 'button', 'data-facet': 'keyword', 'data-value': v, title: T('filterBy')(k) }, k);
+}
+function facetChip(key, v) {
+  return h('button', { class: 'chip f' + (S.sel[key].has(v) ? ' sel' : ''), type: 'button', 'data-facet': key, 'data-value': v, title: T('filterBy')(v) }, v);
+}
+function linkButtons(p) {
+  const out = [];
+  if (p.doi) out.push(h('a', { class: 'btn', href: doiUrl(p.doi), target: '_blank', rel: 'noopener noreferrer' }, icon('ext'), T('doi')));
+  if (p.url && !(p.doi && /^https?:\/\/(dx\.)?doi\.org\//i.test(p.url))) {
+    out.push(h('a', { class: 'btn', href: p.url, target: '_blank', rel: 'noopener noreferrer' }, icon('ext'), /arxiv\.org/i.test(p.url) ? 'arXiv' : T('link')));
+  }
+  return out;
+}
+function authorsLine(list, max) {
+  const shown = list.slice(0, max).join(', ');
+  return list.length > max ? [shown, ' ', h('span', { class: 'more' }, T('moreAuthors')(fmtN(list.length - max)))] : [shown];
+}
+function card(p) {
+  const gray = isGray(p.tp[0]);
+  const el = h('article', { class: 'card' + (gray ? ' gray' : '') });
+  if (!gray) el.style.setProperty('--h', hueOf(p.tp[0]));
+  const tk = pick(p.tk);
+  let absOpen = false;
+  if (p.ab && S.hlTest) { S.hlTest.lastIndex = 0; absOpen = S.hlTest.test(p.ab); }
+  return add(el, [
+    h('div', { class: 'card-head' },
+      h('div', { class: 'meta' }, h('span', null, p.j), p.d ? h('span', { class: 'date' }, ' · ' + fmtDate(p.d)) : null),
+      relNode(p)),
+    h('div', { class: 'chips' }, p.tp.map(topicChip)),
+    h('h2', { class: 'title' }, h('a', { href: '#p=' + p.id, 'data-open': p.id }, hl(p.t))),
+    p.a.length ? h('div', { class: 'authors' }, authorsLine(p.a, 8)) : null,
+    p.in.length ? h('div', { class: 'inst' }, icon('building'), h('span', null, p.in.slice(0, 3).join(' · ') + (p.in.length > 3 ? ` · +${p.in.length - 3}` : ''))) : null,
+    tk ? h('p', { class: 'takeaway' }, h('span', { class: 'ai-badge', title: T('aiTip') }, 'AI'), tk) : null,
+    p.kw.length ? h('div', { class: 'chips' }, p.kw.slice(0, 8).map(kwChip)) : null,
+    p.ab ? h('details', { class: 'absd', open: absOpen }, h('summary', null, T('abstract')), h('p', { class: 'abs' }, hl(p.ab))) : null,
+    h('div', { class: 'actions' },
+      h('button', { class: 'btn primary', type: 'button', 'data-open': p.id }, icon('spark'), T('openDetail')),
+      linkButtons(p)),
+  ]);
+}
+function renderList(keepShown) {
+  const target = keepShown ? Math.max(S.shown, BATCH) : BATCH;
+  listEl.replaceChildren();
+  S.shown = 0;
+  if (!computed.results.length) {
+    listEl.append(h('div', { class: 'empty' }, T('noResults'),
+      (S.q || anySelected()) ? h('p', null, h('button', { class: 'linkish', type: 'button', onclick: clearAll }, T('clearAll'))) : null));
+    updateMore();
+    return;
+  }
+  appendBatch(target);
+}
+function appendBatch(n) {
+  const frag = document.createDocumentFragment();
+  const end = Math.min(computed.results.length, S.shown + n);
+  for (let i = S.shown; i < end; i++) frag.append(card(computed.results[i]));
+  listEl.append(frag);
+  S.shown = end;
+  updateMore();
+}
+function updateMore() {
+  const left = computed.results.length - S.shown;
+  moreBtn.hidden = left <= 0;
+  if (left > 0) moreBtn.textContent = T('loadMore')(fmtN(left));
+}
+
+/* ------------------------------------------------------------------ render: facets */
+function buildFacets() {
+  facetsEl.replaceChildren(...FACETS.map(f => {
+    const det = h('details', { class: 'facet', 'data-key': f.key, open: !!f.open || S.sel[f.key].size > 0 },
+      h('summary', null, h('span', { class: 'flabel' }), h('span', { class: 'badge', hidden: true })));
+    if (f.search) {
+      const inp = h('input', { class: 'fsearch', type: 'search', autocomplete: 'off', spellcheck: 'false' });
+      inp.addEventListener('input', () => { S.fq[f.key] = inp.value; renderFacet(f); });
+      det.append(inp);
+    }
+    det.append(h('div', { class: 'fvals' }));
+    return det;
+  }));
+}
+function renderFacet(f) {
+  const det = facetsEl.querySelector(`.facet[data-key="${f.key}"]`);
+  if (!det) return;
+  const sel = S.sel[f.key];
+  const countMap = computed.counts[f.key] || new Map();
+  det.querySelector('.flabel').textContent = T('f_' + f.key);
+  const badge = det.querySelector('.badge'); badge.hidden = !sel.size; badge.textContent = String(sel.size);
+  const inp = det.querySelector('.fsearch'); if (inp) inp.placeholder = T('fsearch');
+  let entries = [...countMap.entries()];
+  for (const v of sel) if (!countMap.has(v)) entries.push([v, 0]);
+  const fq = fold(S.fq[f.key]);
+  if (fq) entries = entries.filter(([v]) => sel.has(v) || fold(f.fmt ? f.fmt(v) : v).includes(fq));
+  if (f.order === 'value') entries.sort((a, b) => (a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0));
+  else entries.sort((a, b) => (b[1] - a[1]) || collator.compare(a[0], b[0]));
+  let shown = entries; let hidden = 0;
+  if (f.limit && entries.length > f.limit) {
+    shown = entries.slice(0, f.limit).concat(entries.slice(f.limit).filter(([v]) => sel.has(v)));
+    hidden = entries.length - shown.length;
+  }
+  const box = det.querySelector('.fvals');
+  box.replaceChildren(...shown.map(([v, n]) => {
+    const on = sel.has(v);
+    return h('label', { class: 'fval' + (on ? ' on' : '') + (n ? '' : ' zero') },
+      h('input', { type: 'checkbox', 'data-v': v, checked: on }),
+      h('span', { class: 'v' }, f.fmt ? f.fmt(v) : v),
+      h('span', { class: 'n' }, fmtN(n)));
+  }));
+  if (!shown.length) box.append(h('div', { class: 'fhint' }, T('fnone')));
+  if (hidden > 0) box.append(h('div', { class: 'fhint' }, T('fmore')(fmtN(hidden))));
+}
+function renderActive() {
+  const items = [];
+  if (S.q) items.push(h('button', { class: 'achip', type: 'button', title: T('remove'), onclick: () => { qInput.value = ''; setQuery(''); } },
+    h('b', null, T('search') + ':'), h('span', null, S.q), h('i', { 'aria-hidden': 'true' }, '×')));
+  for (const f of FACETS) {
+    for (const v of S.sel[f.key]) {
+      items.push(h('button', { class: 'achip', type: 'button', title: T('remove'), onclick: () => setFacet(f.key, v, false) },
+        h('b', null, T('f_' + f.key) + ':'), h('span', null, f.fmt ? f.fmt(v) : v), h('i', { 'aria-hidden': 'true' }, '×')));
+    }
+  }
+  if (items.length > 1) items.push(h('button', { class: 'linkish', type: 'button', onclick: clearAll }, T('clearAll')));
+  activeEl.replaceChildren(...items);
+  const nSel = FACETS.reduce((s, f) => s + S.sel[f.key].size, 0);
+  put(filtersBtn, icon('filter'), T('filters'), nSel ? h('span', { class: 'badge' }, String(nSel)) : null);
+}
+function anySelected() { return FACETS.some(f => S.sel[f.key].size > 0); }
+
+/* ------------------------------------------------------------------ refresh */
+function refresh(opts = {}) {
+  if (!DATA.ready) return;
+  computed = compute();
+  for (const f of FACETS) renderFacet(f);
+  renderActive();
+  const total = fmtN(DATA.papers.length);
+  countEl.textContent = T('count')(fmtN(computed.results.length), total);
+  $('#showResults').textContent = T('showN')(fmtN(computed.results.length));
+  renderList(!!opts.keepShown);
+  if (opts.toTop) {
+    const top = $('#results').getBoundingClientRect().top;
+    if (top < 0) window.scrollTo(0, Math.max(0, window.scrollY + top - topEl.offsetHeight - 8));
+  }
+}
+function setTokens() {
+  S.tokens = tokenize(S.q);
+  const hlToks = S.tokens.filter(t => t.length >= 2).sort((a, b) => b.length - a.length).map(escRe);
+  S.hlRe = hlToks.length ? new RegExp(hlToks.join('|'), 'gi') : null;
+  S.hlTest = hlToks.length ? new RegExp(hlToks.join('|'), 'i') : null;
+}
+function setQuery(q) {
+  S.q = q.trim().slice(0, 300);
+  setTokens();
+  refresh({ toTop: true });
+  writeHash(false);
+}
+function setFacet(key, v, on) {
+  const sel = S.sel[key];
+  if (!sel) return;
+  if (on) sel.add(v); else sel.delete(v);
+  refresh({ toTop: true });
+  writeHash(false);
+}
+function clearAll() {
+  for (const f of FACETS) { S.sel[f.key].clear(); S.fq[f.key] = ''; }
+  facetsEl.querySelectorAll('.fsearch').forEach(i => { i.value = ''; });
+  S.q = ''; qInput.value = ''; setTokens();
+  refresh({ toTop: true });
+  writeHash(false);
+}
+
+/* ------------------------------------------------------------------ detail dialog */
+const shardCache = new Map();
+function loadAnalysis(id) {
+  const k = id[0];
+  if (!shardCache.has(k)) {
+    const pr = fetch(`data/d/${k}.json`).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+    pr.catch(() => shardCache.delete(k));
+    shardCache.set(k, pr);
+  }
+  return shardCache.get(k).then(m => (m && m[id]) || null);
+}
+function sec(title, body, ai) {
+  return h('section', { class: 'sec' + (ai ? ' ai' : '') }, h('h3', null, title), body);
+}
+function ul(items) { return h('ul', null, items.map(i => h('li', null, i))); }
+function renderDetail(p) {
+  dKicker.textContent = [p.j, fmtDate(p.d)].filter(Boolean).join(' · ');
+  $('#dCopy').textContent = T('copyLink');
+  const authorsBox = h('div', { class: 'd-authors' });
+  const fillAuthors = all => {
+    const max = all ? p.a.length : 40;
+    authorsBox.replaceChildren(p.a.slice(0, max).join(', '));
+    if (p.a.length > max) {
+      authorsBox.append(' ', h('button', { class: 'linkish', type: 'button', onclick: () => fillAuthors(true) }, T('allAuthors')(fmtN(p.a.length))));
+    }
+  };
+  fillAuthors(false);
+  put(dBody,
+    h('div', { class: 'chips' }, p.tp.map(topicChip)),
+    h('h2', { class: 'd-title', id: 'dTitle' }, hl(p.t)),
+    p.a.length ? authorsBox : null,
+    p.in.length ? h('div', { class: 'inst' }, icon('building'), h('span', null, p.in.join(' · '))) : null,
+    p.kw.length ? h('div', { class: 'chips' }, p.kw.map(kwChip)) : null,
+    h('div', { class: 'd-actions' }, linkButtons(p), relNode(p)),
+    h('section', { class: 'sec' }, h('h3', null, T('abstract')),
+      p.ab ? h('p', { class: 'abs' }, hl(p.ab)) : h('p', { class: 'muted' }, p.ab === '' && p.af === 'withheld' ? T('abstractWithheld') : T('noAbstract')),
+      p.ab ? h('div', { class: 'notice cr' }, T('abstractNote')(SOURCE_NAMES[p.src] || '')) : null),
+    h('div', { class: 'aiwrap', id: 'aiwrap' }, h('div', { class: 'loading' }, T('loadingAI'))),
+  );
+}
+function renderAI(p, a) {
+  const wrap = $('#aiwrap', dBody);
+  if (!wrap) return;
+  if (!a) { wrap.replaceChildren(h('p', { class: 'muted' }, T('noAI'))); return; }
+  const out = [h('div', { class: 'notice ai' }, h('span', { class: 'ai-badge', title: T('aiTip') }, 'AI'), h('span', null, T('aiBanner')(a.model)))];
+  const tk = pick(p.tk);
+  if (tk) out.push(sec(T('sec_takeaway'), h('p', null, tk), true));
+  const sa = a.sa || {};
+  const saKeys = ['method', 'data', 'results', 'limitations', 'novelty'].filter(k => sa[k] && pick(sa[k].t));
+  if (saKeys.length) {
+    out.push(sec(T('sec_structured'), h('div', { class: 'grid' }, saKeys.map(k => h('div', { class: 'pill' },
+      h('b', null, T('sa_' + k)), h('div', null, pick(sa[k].t)),
+      (!isZh() && sa[k].src) ? h('small', null, T('saSource')(sa[k].src)) : null))), true));
+  }
+  const sm = pick(a.sum);
+  if (sm) out.push(sec(T('sec_summary'), h('p', null, sm), true));
+  for (const [k, label] of [['kc', 'sec_kc'], ['me', 'sec_me'], ['de', 'sec_de']]) {
+    const items = pickList(a[k]);
+    if (items.length) out.push(sec(T(label), ul(items), true));
+  }
+  const figs = arr(a.fig);
+  if (figs.length) {
+    out.push(sec(T('sec_fig'), figs.map(fg => h('div', { class: 'fig' },
+      h('h4', null, [fg.id, fg.title].filter(Boolean).join(' — ')),
+      pick(fg.desc) ? h('p', null, h('strong', null, T('fig_desc') + ': '), pick(fg.desc)) : null,
+      pick(fg.interp) ? h('p', null, h('strong', null, T('fig_interp') + ': '), pick(fg.interp)) : null,
+      fg.finding ? h('p', null, h('strong', null, T('fig_finding') + ': '), fg.finding) : null,
+      fg.cap ? h('p', { class: 'muted' }, h('strong', null, T('fig_cap') + ': '), fg.cap) : null,
+      fg.rel ? h('p', { class: 'muted' }, h('strong', null, T('fig_rel') + ': '), fg.rel) : null)), true));
+  }
+  const li = pickList(a.li);
+  if (li.length) out.push(sec(T('sec_li'), ul(li), true));
+  const tm = arr(a.tm);
+  if (tm.length) {
+    out.push(sec(T('sec_tm'), h('div', { class: 'grid' }, tm.map(m => h('div', { class: 'tm' },
+      h('div', { class: 'tm-h' }, h('div', null, m.topic), h('span', null, `${Math.round((Number(m.conf) || 0) * 100)}% ${T('confidence')}`)),
+      m.why ? h('p', null, m.why) : null))), true));
+  }
+  const rows = [['method', p.fc.m], ['data', p.fc.dt], ['target', p.fc.tg], ['role', p.fc.r ? [p.fc.r] : []]].filter(([, v]) => v.length);
+  if (rows.length) {
+    out.push(sec(T('sec_facets'), h('dl', { class: 'kv' }, rows.map(([k, vals]) => [h('dt', null, T('f_' + k)), h('dd', null, vals.map(v => facetChip(k, v)))])), true));
+  }
+  const fu = pickList(a.fu);
+  if (fu.length) out.push(sec(T('sec_fu'), ul(fu), true));
+  const ev = a.ev || {};
+  const evRows = [];
+  if (ev.on) evRows.push([T('ev_on'), ev.on]);
+  if (arr(a.us).length) evRows.push([T('ev_sources'), arr(a.us).join(', ')]);
+  if (a.model) evRows.push([T('ev_model'), a.model]);
+  if (ev.notes) evRows.push([T('ev_notes'), ev.notes]);
+  if (evRows.length) out.push(sec(T('sec_ev'), h('dl', { class: 'kv' }, evRows.map(([k, v]) => [h('dt', null, k), h('dd', null, v)])), true));
+  wrap.replaceChildren(...out);
+}
+function fillDetail(p) {
+  renderDetail(p);
+  loadAnalysis(p.id)
+    .then(a => { if (S.p === p.id) renderAI(p, a); })
+    .catch(() => { if (S.p === p.id) { const w = $('#aiwrap', dBody); if (w) w.replaceChildren(h('p', { class: 'muted' }, T('aiFail'))); } });
+}
+function openDetail(id, fromNav) {
+  const p = DATA.byId.get(id);
+  if (!p) return;
+  const switching = dlg.open && S.p;
+  S.p = id;
+  if (!fromNav) { writeHash(!switching); if (!switching) S.pushed = true; }
+  fillDetail(p);
+  if (!dlg.open) { try { dlg.showModal(); } catch (e) { dlg.setAttribute('open', ''); } }
+  dBody.scrollTop = 0;
+}
+function closeDetailFor(fn) {
+  // Close without touching history (used when a chip inside the dialog applies a filter).
+  S.p = null; S.pushed = false;
+  if (dlg.open) dlg.close();
+  fn();
+}
+dlg.addEventListener('close', () => {
+  if (!S.p) return;
+  S.p = null;
+  if (S.pushed) { S.pushed = false; history.back(); } else writeHash(false);
+});
+dlg.addEventListener('click', e => {
+  if (e.target === dlg) { dlg.close(); return; }
+  const fc = e.target.closest('[data-facet]');
+  if (fc) { e.preventDefault(); const key = fc.getAttribute('data-facet'); const v = fc.getAttribute('data-value'); closeDetailFor(() => setFacet(key, v, !S.sel[key].has(v))); }
+});
+$('#dClose').addEventListener('click', () => dlg.close());
+$('#dCopy').addEventListener('click', async () => {
+  if (!S.p) return;
+  const url = location.origin + location.pathname + '#p=' + S.p;
+  try { await navigator.clipboard.writeText(url); toast(T('copied')); } catch (e) { window.prompt(T('copyLink'), url); }
+});
+
+/* ------------------------------------------------------------------ about dialog + footer */
+function renderAbout() {
+  $('#aTitle').textContent = T('aboutTitle');
+  const n = fmtN(DATA.papers.length); const d = DATA.generated || '—';
+  aBody.replaceChildren(...T('aboutBody')(n, d).map(([t, body]) => [h('h3', null, t), h('p', null, body)]).flat(),
+    h('p', null, h('a', { href: ISSUES_URL, target: '_blank', rel: 'noopener noreferrer' }, T('footIssue')), ' · ',
+      h('a', { href: REPO_URL, target: '_blank', rel: 'noopener noreferrer' }, T('footRepo'))));
+}
+function openAbout() { renderAbout(); try { aboutDlg.showModal(); } catch (e) { aboutDlg.setAttribute('open', ''); } }
+$('#aboutBtn').addEventListener('click', openAbout);
+$('#aClose').addEventListener('click', () => aboutDlg.close());
+aboutDlg.addEventListener('click', e => { if (e.target === aboutDlg) aboutDlg.close(); });
+function renderFooter() {
+  const n = fmtN(DATA.papers.length); const d = DATA.generated || '—';
+  $('#foot').replaceChildren(
+    h('p', null, h('strong', null, T('foot1')(n, d))),
+    h('p', null, T('foot2')),
+    h('p', null, T('foot3')),
+    h('p', { class: 'links' },
+      h('button', { type: 'button', onclick: openAbout }, T('footAbout')),
+      h('a', { href: REPO_URL, target: '_blank', rel: 'noopener noreferrer' }, T('footRepo')),
+      h('a', { href: ISSUES_URL, target: '_blank', rel: 'noopener noreferrer' }, T('footIssue'))));
+}
+
+/* ------------------------------------------------------------------ language + static text */
+function applyStaticText() {
+  document.documentElement.lang = isZh() ? 'zh-CN' : 'en';
+  qInput.placeholder = T('searchPh');
+  qInput.setAttribute('aria-label', T('search'));
+  sortSel.setAttribute('aria-label', T('sortLabel'));
+  sortSel.replaceChildren(...SORTS.map(s => h('option', { value: s }, T('sort_' + s))));
+  sortSel.value = S.sort;
+  const lb = $('#langBtn'); lb.textContent = T('langBtn'); lb.lang = isZh() ? 'en' : 'zh-CN';
+  $('#aboutBtn').textContent = T('about');
+  $('#filtersTitle').textContent = T('filters');
+  $('#clearAllMobile').textContent = T('clearAll');
+  $('#filtersClose').setAttribute('aria-label', T('close'));
+  $('#dClose').setAttribute('aria-label', T('close'));
+  $('#aClose').setAttribute('aria-label', T('close'));
+  if (DATA.ready) statsEl.textContent = T('stats')(fmtN(DATA.papers.length), DATA.generated || '—');
+  if (DATA.ready) renderFooter();
+}
+function setLang(l) {
+  if (l !== 'en' && l !== 'zh') return;
+  S.lang = l;
+  try { localStorage.setItem(LS_LANG, l); } catch (e) { /* storage may be unavailable */ }
+  applyStaticText();
+  refresh({ keepShown: true });
+  if (dlg.open && S.p && DATA.byId.has(S.p)) { const top = dBody.scrollTop; fillDetail(DATA.byId.get(S.p)); dBody.scrollTop = top; }
+  if (aboutDlg.open) renderAbout();
+  writeHash(false);
+}
+$('#langBtn').addEventListener('click', () => setLang(isZh() ? 'en' : 'zh'));
+
+/* ------------------------------------------------------------------ URL state */
+function filterSig() { return JSON.stringify([S.q, S.sort, FACETS.map(f => [...S.sel[f.key]].sort())]); }
+function readHash() {
+  const raw = location.hash.replace(/^#/, '');
+  lastHash = raw;
+  const sp = new URLSearchParams(raw);
+  S.q = (sp.get('q') || '').slice(0, 300);
+  S.sort = SORTS.includes(sp.get('sort')) ? sp.get('sort') : 'new';
+  for (const f of FACETS) S.sel[f.key] = new Set(sp.getAll(f.key).filter(Boolean).slice(0, 50));
+  const l = sp.get('lang'); if (l === 'en' || l === 'zh') S.lang = l;
+  const p = sp.get('p'); S.p = p && /^[0-9a-f]{16}$/.test(p) ? p : null;
+  setTokens();
+}
+function writeHash(push) {
+  const sp = new URLSearchParams();
+  if (S.q) sp.set('q', S.q);
+  if (S.sort !== 'new') sp.set('sort', S.sort);
+  for (const f of FACETS) for (const v of S.sel[f.key]) sp.append(f.key, v);
+  if (isZh()) sp.set('lang', 'zh');
+  if (S.p) sp.set('p', S.p);
+  const hs = sp.toString();
+  if (hs === lastHash) return;
+  lastHash = hs;
+  const url = location.pathname + location.search + (hs ? '#' + hs : '');
+  try { history[push ? 'pushState' : 'replaceState'](null, '', url); } catch (e) { /* ignore */ }
+}
+function onNav() {
+  if (!DATA.ready) return;
+  if (location.hash.replace(/^#/, '') === lastHash) return;
+  const before = filterSig(); const beforeLang = S.lang;
+  readHash();
+  if (S.lang !== beforeLang) applyStaticText();
+  qInput.value = S.q; sortSel.value = S.sort;
+  if (filterSig() !== before || S.lang !== beforeLang) refresh();
+  if (S.p && DATA.byId.has(S.p)) { S.pushed = false; openDetail(S.p, true); }
+  else if (dlg.open) { S.p = null; S.pushed = false; dlg.close(); }
+}
+window.addEventListener('popstate', onNav);
+window.addEventListener('hashchange', onNav);
+
+/* ------------------------------------------------------------------ events */
+let qTimer = 0;
+qInput.addEventListener('input', () => { clearTimeout(qTimer); qTimer = setTimeout(() => setQuery(qInput.value), 180); });
+qInput.addEventListener('keydown', e => { if (e.key === 'Enter') { clearTimeout(qTimer); setQuery(qInput.value); qInput.blur(); } });
+sortSel.addEventListener('change', () => { S.sort = SORTS.includes(sortSel.value) ? sortSel.value : 'new'; refresh({ toTop: true }); writeHash(false); });
+facetsEl.addEventListener('change', e => {
+  const cb = e.target.closest('input[type=checkbox][data-v]');
+  if (!cb) return;
+  const det = cb.closest('.facet');
+  setFacet(det.getAttribute('data-key'), cb.getAttribute('data-v'), cb.checked);
+});
+listEl.addEventListener('click', e => {
+  const op = e.target.closest('[data-open]');
+  if (op) {
+    if (op.tagName === 'A' && (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)) return;
+    e.preventDefault();
+    openDetail(op.getAttribute('data-open'));
+    return;
+  }
+  const fc = e.target.closest('[data-facet]');
+  if (fc) { e.preventDefault(); const key = fc.getAttribute('data-facet'); const v = fc.getAttribute('data-value'); setFacet(key, v, !S.sel[key].has(v)); }
+});
+moreBtn.addEventListener('click', () => appendBatch(BATCH));
+if ('IntersectionObserver' in window) {
+  new IntersectionObserver(entries => {
+    if (entries.some(en => en.isIntersecting) && DATA.ready && S.shown < computed.results.length) appendBatch(BATCH);
+  }, { rootMargin: '600px 0px' }).observe($('#sentinel'));
+}
+function setDrawer(open) {
+  filtersEl.classList.toggle('open', open);
+  document.body.classList.toggle('lock', open);
+  filtersBtn.setAttribute('aria-expanded', String(open));
+  if (open) $('#filtersClose').focus(); else filtersBtn.focus();
+}
+filtersBtn.addEventListener('click', () => setDrawer(true));
+$('#filtersClose').addEventListener('click', () => setDrawer(false));
+$('#showResults').addEventListener('click', () => setDrawer(false));
+$('#clearAllMobile').addEventListener('click', clearAll);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && filtersEl.classList.contains('open')) { setDrawer(false); return; }
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '');
+  if (e.key === '/' && !typing && !dlg.open && !aboutDlg.open) { e.preventDefault(); qInput.focus(); }
+});
+function measureTop() { document.documentElement.style.setProperty('--top-h', (topEl.offsetHeight + 12) + 'px'); }
+window.addEventListener('resize', measureTop);
+
+/* ------------------------------------------------------------------ boot */
+(function boot() {
+  let stored = null;
+  try { stored = localStorage.getItem(LS_LANG); } catch (e) { stored = null; }
+  S.lang = stored === 'zh' || stored === 'en' ? stored : ((navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en');
+  readHash();
+  qInput.value = S.q;
+  applyStaticText();
+  measureTop();
+  listEl.replaceChildren(h('div', { class: 'loading' }, T('loading')));
+  fetch('data/papers.json')
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(doc => {
+      init(doc);
+      for (const f of FACETS) S.sel[f.key] = new Set([...S.sel[f.key]]);
+      applyStaticText();
+      buildFacets();
+      refresh();
+      lastHash = location.hash.replace(/^#/, '');
+      if (S.p && DATA.byId.has(S.p)) openDetail(S.p, true);
+    })
+    .catch(() => {
+      countEl.textContent = '';
+      listEl.replaceChildren(h('div', { class: 'empty' }, h('strong', null, T('loadError')), h('p', null, T('loadHint'))));
+    });
+})();
+})();
+</script>
+</body>
+</html>
