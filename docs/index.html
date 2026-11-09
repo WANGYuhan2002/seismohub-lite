@@ -102,7 +102,8 @@ select{height:44px;border:1px solid var(--line-2);border-radius:12px;background:
 .card.gray{border-left-color:var(--line-2)}
 .card-head{display:flex;align-items:flex-start;gap:12px}
 .meta{font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--accent);flex:1;min-width:0;padding-top:2px;overflow-wrap:anywhere}
-.meta .date{color:var(--muted);font-weight:600;letter-spacing:.03em}
+.meta .date,.kicker .date{color:var(--muted);font-weight:400;letter-spacing:.03em}
+.jn{font-weight:300;letter-spacing:.1em}
 .rel{flex:none;text-align:right;line-height:1;cursor:help}
 .rel span{display:block;font-size:9.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
 .rel b{display:block;font-size:22px;font-weight:800;margin-top:3px}
@@ -114,11 +115,20 @@ select{height:44px;border:1px solid var(--line-2);border-radius:12px;background:
 .chip.f{background:var(--surface-2);color:var(--muted);border-radius:6px}
 .chip.sel{outline:2px solid var(--accent);outline-offset:1px}
 .chip:hover{filter:brightness(.95)}
-.title{margin:10px 0 6px;font-size:19px;line-height:1.3;font-weight:750;letter-spacing:-.005em;overflow-wrap:anywhere}
+.title{margin:10px 0 6px;font-size:21px;line-height:1.28;font-weight:750;letter-spacing:-.01em;overflow-wrap:anywhere}
 .title a{color:var(--text);text-decoration:none}
 .title a:hover{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
 .authors{font-size:13.5px;color:var(--muted)}
 .authors .more{color:var(--faint);white-space:nowrap}
+/* one small person icon per author; the icons separate the names on screen */
+.au{display:inline-block;max-width:100%;margin-right:.6em}
+.au svg{width:.86em;height:.86em;margin-right:.28em;vertical-align:-.1em;color:var(--faint)}
+/* visually hidden but still read aloud and copied: the commas between author names.
+   Kept inline (not position:absolute) so copied text and innerText get no line breaks. */
+.vh{display:inline-block;width:1px;height:1px;margin-right:-1px;overflow:hidden;clip-path:inset(50%);white-space:pre}
+.kwrow{display:flex;align-items:flex-start;gap:7px;margin-top:8px}
+.kwrow>svg{width:14px;height:14px;flex:none;margin-top:4px;color:var(--ai);opacity:.75}
+.kwrow>.chips{margin-top:0;flex:1;min-width:0}
 .inst{display:flex;gap:6px;align-items:flex-start;font-size:12.5px;color:var(--faint);margin-top:4px}
 .inst svg{width:13px;height:13px;flex:none;margin-top:3px}
 .takeaway{margin:10px 0 0;font-size:14px;background:var(--ai-soft);border:1px solid var(--ai-line);border-radius:10px;padding:8px 10px}
@@ -211,7 +221,7 @@ dialog::backdrop{background:rgba(8,12,20,.55)}
   .brand-sub{font-size:11.5px}
   .layout{padding:12px 12px 32px}
   .card{padding:14px 14px 12px}
-  .title{font-size:17px}
+  .title{font-size:18px}
   select{max-width:36vw;padding:0 6px}
   dialog{width:100%;max-width:100%;height:100%;max-height:100%;margin:0;border-radius:0;border:0}
   .dlg-body{padding:14px 14px 32px}
@@ -550,14 +560,28 @@ const ICONS = {
   building: 'M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16M15 9h4a1 1 0 0 1 1 1v11M3 21h18M8 8h3M8 12h3M8 16h3',
   spark: 'M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2-2.2-.8 2.2-.8z',
   filter: 'M4 5h16l-6 8v5l-4 2v-7z',
+  tag: 'M3 4v7.6a1.5 1.5 0 0 0 .44 1.06l7.9 7.9a2 2 0 0 0 2.83 0l6.4-6.4a2 2 0 0 0 0-2.83l-7.9-7.9A1.5 1.5 0 0 0 11.6 3H4a1 1 0 0 0-1 1zM7.5 7.5h.01',
 };
+// Filled glyphs (drawn with fill, not stroke).
+const SOLID = {
+  person: 'M12 11.5a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5zM4 20c0-3.6 3.6-6.25 8-6.25S20 16.4 20 20v.25a.75.75 0 0 1-.75.75H4.75A.75.75 0 0 1 4 20.25z',
+};
+const iconTpl = new Map();
 function icon(name) {
-  const s = document.createElementNS(SVGNS, 'svg');
-  s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor');
-  s.setAttribute('stroke-width', '2'); s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round');
-  s.setAttribute('aria-hidden', 'true');
-  const p = document.createElementNS(SVGNS, 'path'); p.setAttribute('d', ICONS[name]); s.append(p);
-  return s;
+  let s = iconTpl.get(name);
+  if (!s) {
+    s = document.createElementNS(SVGNS, 'svg');
+    s.setAttribute('viewBox', '0 0 24 24');
+    if (SOLID[name]) s.setAttribute('fill', 'currentColor');
+    else {
+      s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor');
+      s.setAttribute('stroke-width', '2'); s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round');
+    }
+    s.setAttribute('aria-hidden', 'true');
+    const p = document.createElementNS(SVGNS, 'path'); p.setAttribute('d', SOLID[name] || ICONS[name]); s.append(p);
+    iconTpl.set(name, s);
+  }
+  return s.cloneNode(true);
 }
 function fmtDate(d) {
   if (!d) return '';
@@ -727,9 +751,26 @@ function linkButtons(p) {
   }
   return out;
 }
+// Each author gets a small person icon. The comma between names stays in the
+// text for copying and screen readers, but is hidden: the icons separate the names.
+function authorNodes(list) {
+  const out = [];
+  list.forEach((a, i) => {
+    if (i) out.push(h('span', { class: 'vh' }, ', '));
+    out.push(h('span', { class: 'au' }, icon('person'), a));
+  });
+  return out;
+}
 function authorsLine(list, max) {
-  const shown = list.slice(0, max).join(', ');
-  return list.length > max ? [shown, ' ', h('span', { class: 'more' }, T('moreAuthors')(fmtN(list.length - max)))] : [shown];
+  const out = authorNodes(list.slice(0, max));
+  if (list.length > max) out.push(h('span', { class: 'vh' }, ' '), h('span', { class: 'more' }, T('moreAuthors')(fmtN(list.length - max))));
+  return out;
+}
+function kwRow(list) {
+  return h('div', { class: 'kwrow', role: 'group', 'aria-label': T('f_keyword') }, icon('tag'), h('div', { class: 'chips' }, list.map(kwChip)));
+}
+function journalKicker(p) {
+  return [h('span', { class: 'jn' }, p.j), p.d ? h('span', { class: 'date' }, ' · ' + fmtDate(p.d)) : null];
 }
 function card(p) {
   const gray = isGray(p.tp[0]);
@@ -741,14 +782,14 @@ function card(p) {
   const absPending = !p.ab && !DATA.absReady && hasAbs(p);
   return add(el, [
     h('div', { class: 'card-head' },
-      h('div', { class: 'meta' }, h('span', null, p.j), p.d ? h('span', { class: 'date' }, ' · ' + fmtDate(p.d)) : null),
+      h('div', { class: 'meta' }, journalKicker(p)),
       relNode(p)),
     h('div', { class: 'chips' }, p.tp.map(topicChip)),
     h('h2', { class: 'title' }, h('a', { href: '#p=' + p.id, 'data-open': p.id }, hl(p.t))),
     p.a.length ? h('div', { class: 'authors' }, authorsLine(p.a, 8)) : null,
     p.in.length ? h('div', { class: 'inst' }, icon('building'), h('span', null, p.in.slice(0, 3).join(' · ') + (p.in.length > 3 ? ` · +${p.in.length - 3}` : ''))) : null,
     tk ? h('p', { class: 'takeaway' }, h('span', { class: 'ai-badge', title: T('aiTip') }, 'AI'), tk) : null,
-    p.kw.length ? h('div', { class: 'chips' }, p.kw.slice(0, 8).map(kwChip)) : null,
+    p.kw.length ? kwRow(p.kw.slice(0, 8)) : null,
     (p.ab || absPending) ? h('details', { class: 'absd', open: absOpen },
       h('summary', null, T('abstract')),
       h('p', { class: 'abs', 'data-abs': absPending ? p.id : null }, p.ab ? hl(p.ab) : T('absLoading'))) : null,
@@ -908,14 +949,14 @@ function sec(title, body, ai) {
 }
 function ul(items) { return h('ul', null, items.map(i => h('li', null, i))); }
 function renderDetail(p) {
-  dKicker.textContent = [p.j, fmtDate(p.d)].filter(Boolean).join(' · ');
+  put(dKicker, journalKicker(p));
   $('#dCopy').textContent = T('copyLink');
   const authorsBox = h('div', { class: 'd-authors' });
   const fillAuthors = all => {
     const max = all ? p.a.length : 40;
-    authorsBox.replaceChildren(p.a.slice(0, max).join(', '));
+    put(authorsBox, authorNodes(p.a.slice(0, max)));
     if (p.a.length > max) {
-      authorsBox.append(' ', h('button', { class: 'linkish', type: 'button', onclick: () => fillAuthors(true) }, T('allAuthors')(fmtN(p.a.length))));
+      authorsBox.append(h('span', { class: 'vh' }, ' '), h('button', { class: 'linkish', type: 'button', onclick: () => fillAuthors(true) }, T('allAuthors')(fmtN(p.a.length))));
     }
   };
   fillAuthors(false);
@@ -929,7 +970,7 @@ function renderDetail(p) {
     h('h2', { class: 'd-title', id: 'dTitle' }, hl(p.t)),
     p.a.length ? authorsBox : null,
     p.in.length ? h('div', { class: 'inst' }, icon('building'), h('span', null, p.in.join(' · '))) : null,
-    p.kw.length ? h('div', { class: 'chips' }, p.kw.map(kwChip)) : null,
+    p.kw.length ? kwRow(p.kw) : null,
     h('div', { class: 'd-actions' }, linkButtons(p),
       h('button', { class: 'btn', type: 'button', onclick: () => copyText(bibtex([p]), T('bibCopied')) }, T('copyBib')),
       relNode(p)),

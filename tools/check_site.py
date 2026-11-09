@@ -16,8 +16,14 @@ Checks:
   * BibTeX/RIS export and "copy BibTeX" work;
   * the language switch, Chinese labels, deep links and back-to-top work;
   * the mobile filter drawer works, and there is no horizontal overflow at
-    phone width;
-  * the page degrades gracefully if abstracts.json cannot be loaded.
+    phone width (390 and 360 px, including the longest author and journal
+    names);
+  * the page degrades gracefully if abstracts.json cannot be loaded;
+  * the card style the owner asked for on 2026-11-09 holds: titles larger
+    than 19 px (17 px on phones), journal names in a light weight (<= 300)
+    that stays readable in light and dark mode, a tag icon before every
+    keyword row, and one person icon per author on the cards and in the
+    dialog, without making any line taller.
 
 Usage:
     python3 tools/check_site.py [--shots DIR] [--base https://…/seismohub-lite]
@@ -37,10 +43,74 @@ import sys
 import threading
 import time
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import quote, urlencode, urlparse
 
 DOCS = Path(__file__).resolve().parent.parent / "docs"
 CJK = re.compile(r"[一-鿿]")
+
+# Card style (owner's request, 2026-11-09), measured on every rendered card.
+# For each card: [paper id, title px, journal weight, keyword chips, keyword
+# row ok, person icons, authors shown, svgs in the author line, author lines
+# keep their height, author text as read aloud/copied].
+CARD_LOOK_JS = """(() => {
+  const cs = e => getComputedStyle(e);
+  const isSvg = e => !!e && e.tagName.toLowerCase() === 'svg';
+  return [...document.querySelectorAll('article.card')].map(c => {
+    const op = c.querySelector('[data-open]');
+    const jn = c.querySelector('.meta .jn');
+    const row = c.querySelector('.kwrow');
+    let rowOk = null;
+    if (row) {
+      const ic = row.firstElementChild; const chips = ic && ic.nextElementSibling; const first = row.querySelector('.chip.k');
+      rowOk = row.querySelectorAll('svg').length === 1 && isSvg(ic) && !!chips && chips.classList.contains('chips') && !!first;
+      if (rowOk) {
+        const a = ic.getBoundingClientRect(); const b = first.getBoundingClientRect();
+        rowOk = a.width > 0 && a.height > 0 && a.right <= b.left && a.top < b.bottom && a.bottom > b.top
+          && Math.abs(row.getBoundingClientRect().height - chips.getBoundingClientRect().height) < 0.5;
+      }
+    }
+    const box = c.querySelector('.authors');
+    const aus = box ? [...box.querySelectorAll('.au')] : [];
+    const lh = box ? parseFloat(cs(box).lineHeight) : 0;
+    const flat = aus.every(a => { const r = a.getBoundingClientRect().height / lh; return Math.abs(r - Math.round(r)) < 0.05; });
+    return [op ? op.getAttribute('data-open') : '', parseFloat(cs(c.querySelector('.title')).fontSize),
+      jn ? parseInt(cs(jn).fontWeight, 10) : 999, c.querySelectorAll('.chip.k').length, rowOk,
+      aus.filter(a => isSvg(a.firstElementChild) && a.querySelectorAll('svg').length === 1 && a.firstElementChild.getBoundingClientRect().width > 0).length,
+      aus.length, box ? box.querySelectorAll('svg').length : 0, flat, box ? box.innerText : ''];
+  });
+})()"""
+
+# Contrast ratio (WCAG) of the first card's journal name on the card, and its weight.
+JOURNAL_CONTRAST_JS = """(() => {
+  const rgb = s => (s.match(/[\\d.]+/g) || []).slice(0, 3).map(Number);
+  const lum = c => { const v = c.map(x => { x /= 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); });
+    return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
+  const jn = document.querySelector('article.card .meta .jn');
+  if (!jn) return [0, 999];
+  const a = lum(rgb(getComputedStyle(jn).color)); const b = lum(rgb(getComputedStyle(jn.closest('article.card')).backgroundColor));
+  return [Math.round((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) * 100) / 100, parseInt(getComputedStyle(jn).fontWeight, 10)];
+})()"""
+
+# The dialog's author line and keyword row: [person icons, authors shown, svgs
+# in the author line, "show all" button present, keyword row ok, kicker journal weight].
+DIALOG_LOOK_JS = """(() => {
+  const b = document.querySelector('#detail .d-authors');
+  const aus = b ? [...b.querySelectorAll('.au')] : [];
+  const jn = document.querySelector('#dKicker .jn');
+  const row = document.querySelector('#detail .kwrow');
+  return [aus.filter(a => a.firstElementChild && a.firstElementChild.tagName.toLowerCase() === 'svg').length, aus.length,
+    b ? b.querySelectorAll('svg').length : 0, !!(b && b.querySelector('button.linkish')),
+    row ? (row.firstElementChild.tagName.toLowerCase() === 'svg' && row.querySelectorAll('svg').length === 1 && !!row.querySelector(':scope > .chips .chip.k')) : null,
+    jn ? parseInt(getComputedStyle(jn).fontWeight, 10) : 999];
+})()"""
+
+# Horizontal overflow: the page, every rendered card, and the open dialog.
+OVERFLOW_JS = """(() => {
+  const over = e => (e ? e.scrollWidth - e.clientWidth : 0);
+  const cards = [...document.querySelectorAll('article.card')];
+  return [document.documentElement.scrollWidth - innerWidth, cards.length, cards.filter(c => over(c) > 0).length,
+    over(document.querySelector('#detail[open] .dlg-bar')), over(document.querySelector('#detail[open] #dBody'))];
+})()"""
 
 
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
@@ -122,8 +192,42 @@ def main() -> int:
         wait_js(page, "!document.querySelector('[data-abs]') && !document.querySelector('#count .hint')")
 
     stray = re.compile(r"(^|\n)\s*(null|undefined|NaN|\[object Object\])\s*(\n|$)")
-    total = json.loads((DOCS / "data" / "papers.json").read_text(encoding="utf-8"))["count"]
+    index = json.loads((DOCS / "data" / "papers.json").read_text(encoding="utf-8"))
+    total = index["count"]
+    by_id = {p["id"]: p for p in index["papers"]}
     rare = abstract_only_word()
+    squash = lambda s: " ".join(str(s).split())  # noqa: E731
+
+    def check_cards(page, where: str, min_title: float):
+        """The owner's four style points, on every card rendered so far."""
+        rows = page.evaluate(CARD_LOOK_JS)
+        if not rows:
+            check(False, f"{where}: cards to measure")
+            return
+        known = [r for r in rows if r[0] in by_id]
+        title_px = min(r[1] for r in rows)
+        check(title_px > min_title, f"{where}: card titles are larger than {min_title:g}px ({title_px:g}px)")
+        weight = max(r[2] for r in rows)
+        check(weight <= 300, f"{where}: journal names use a light weight ({weight})")
+        with_kw = [r for r in rows if r[3]]
+        check(bool(with_kw) and all(r[4] is True for r in with_kw) and all(r[4] is None for r in rows if not r[3]),
+              f"{where}: a tag icon sits before every keyword row ({sum(r[4] is True for r in with_kw)}/{len(with_kw)} cards)")
+        wrong = [r[0] for r in known if not (r[5] == r[6] == r[7] == min(len(by_id[r[0]]["a"]), 8))]
+        check(bool(known) and not wrong, f"{where}: one person icon per author on every card ({len(known)} cards, {len(wrong)} wrong)")
+        check(all(r[8] for r in rows), f"{where}: the person icons make no author line taller")
+        said = [r[0] for r in known if by_id[r[0]]["a"] and not squash(r[9]).startswith(squash(", ".join(by_id[r[0]]["a"][:8])))]
+        check(not said, f"{where}: author lists still read and copy as 'A, B, C' ({len(said)} wrong)")
+
+    def check_dialog_authors(page, pid: str, where: str):
+        dl = page.evaluate(DIALOG_LOOK_JS)
+        p = by_id.get(pid)
+        if p is not None:
+            want = min(len(p["a"]), 40)
+            check(dl[0] == dl[1] == dl[2] == want, f"{where}: one person icon per author ({dl[0]} icons, {want} authors shown)")
+            if p.get("kw"):
+                check(dl[4] is True, f"{where}: a tag icon sits before the keyword row")
+        check(dl[5] <= 300, f"{where}: the journal name in the header uses a light weight ({dl[5]})")
+        return dl
 
     try:
         with sync_playwright() as pw:
@@ -151,6 +255,9 @@ def main() -> int:
             page.locator("article.card details.absd summary").first.click()
             abs_text = page.locator("article.card details.absd .abs").first.inner_text()
             check(len(abs_text) > 40, f"background-loaded abstract shows in the card ({len(abs_text)} chars)")
+            check_cards(page, "desktop", 19)
+            ratio, weight = page.evaluate(JOURNAL_CONTRAST_JS)
+            check(ratio >= 4.5, f"light journal names stay readable (contrast {ratio}:1, weight {weight})")
             if shots:
                 page.screenshot(path=str(shots / "desktop-list.png"))
 
@@ -236,6 +343,8 @@ def main() -> int:
                 " getComputedStyle(document.querySelector('#dBody')).flexBasis]")
             check(dlg_h >= 0.8 * vh, f"dialog fills the window height ({dlg_h:.0f} of {vh}px)")
             check(basis == "auto", f"dialog body flex-basis is auto, not 0% ({basis})")
+            m = re.search(r"[#&]p=([0-9a-f]{16})", page.url)
+            check_dialog_authors(page, m.group(1) if m else "", "dialog")
 
             # prev / next
             pos1 = page.locator("#dPos").inner_text().strip()
@@ -278,6 +387,23 @@ def main() -> int:
             if shots:
                 page.screenshot(path=str(shots / "desktop-detail.png"))
             page.keyboard.press("Escape")
+            page.wait_for_timeout(300)
+
+            # the paper with the most authors: 40 with icons, then "show all" adds the rest
+            many = max(index["papers"], key=lambda p: len(p["a"]))
+            if len(many["a"]) > 40:
+                page.goto(base + "/#p=" + many["id"])
+                page.wait_for_selector("#detail[open] .d-authors", timeout=15000)
+                dl = check_dialog_authors(page, many["id"], "dialog with many authors")
+                check(dl[3], "dialog offers 'show all' when there are more than 40 authors")
+                if dl[3]:
+                    page.locator("#detail .d-authors button.linkish").click()
+                    page.wait_for_timeout(300)
+                    dl = page.evaluate(DIALOG_LOOK_JS)
+                    n = len(many["a"])
+                    check(dl[0] == dl[1] == dl[2] == n and not dl[3], f"'show all' lists all {n} authors, one icon each ({dl[0]})")
+                page.keyboard.press("Escape")
+                page.wait_for_timeout(300)
 
             # chip inside the dialog applies a filter and closes it
             page.locator("article.card button[data-open]").first.click()
@@ -314,6 +440,7 @@ def main() -> int:
             check(bool(CJK.search(page.locator("article.card .chip.t").first.inner_text())), "cards show Chinese topic labels")
             overflow = page.evaluate("document.documentElement.scrollWidth - window.innerWidth")
             check(overflow <= 0, f"no horizontal overflow at 390px (overflow {overflow}px)")
+            check_cards(page, "phone 390px", 17)
             btn = page.locator("#filtersBtn").inner_text()
             check("null" not in btn and "undefined" not in btn, f"filter button label is clean ({btn.strip()!r})")
             if shots:
@@ -338,6 +465,39 @@ def main() -> int:
                 page.screenshot(path=str(shots / "mobile-detail.png"))
             ctx.close()
 
+            # ---------------------------------------------------------- small phone (360 px)
+            # The list, the longest author name and the longest journal name,
+            # each with its dialog open: nothing may stick out sideways.
+            ctx = browser.new_context(viewport={"width": 360, "height": 780}, device_scale_factor=2,
+                                      is_mobile=True, has_touch=True, locale="zh-CN")
+            page = ctx.new_page()
+            wire(page)
+            page.goto(base + "/")
+            page.wait_for_selector("article.card", timeout=20000)
+            wait_abstracts(page)
+            check_cards(page, "phone 360px", 17)
+            longest_author = max((a for p in index["papers"] for a in p["a"]), key=len, default="")
+            longest_journal = max((p["j"] for p in index["papers"]), key=len, default="")
+            cases = [("list", "")]
+            if longest_author:
+                cases.append((f"longest author ({len(longest_author)} chars)", "#" + urlencode({"q": f'"{longest_author}"'}, quote_via=quote)))
+            if longest_journal:
+                cases.append((f"longest journal ({len(longest_journal)} chars)", "#" + urlencode({"journal": longest_journal}, quote_via=quote)))
+            for label, frag in cases:
+                if frag:
+                    page.goto(base + "/" + frag)
+                    page.wait_for_timeout(500)
+                ov = page.evaluate(OVERFLOW_JS)
+                check(ov[1] >= 1 and ov[0] <= 0 and ov[2] == 0,
+                      f"360px, {label}: nothing overflows sideways (page {ov[0]}px, {ov[2]} of {ov[1]} cards)")
+                page.locator("article.card button[data-open]").first.tap()
+                page.wait_for_selector("#detail[open] .sec.ai, #detail[open] .aiwrap .muted", timeout=15000)
+                ov = page.evaluate(OVERFLOW_JS)
+                check(ov[3] <= 0 and ov[4] <= 0, f"360px, {label}: the dialog does not overflow (toolbar {ov[3]}px, body {ov[4]}px)")
+                page.locator("#dClose").tap()
+                page.wait_for_timeout(300)
+            ctx.close()
+
             # ---------------------------------------------------------- dark mode
             ctx = browser.new_context(viewport={"width": 1280, "height": 900}, color_scheme="dark", locale="en-US")
             page = ctx.new_page()
@@ -346,6 +506,8 @@ def main() -> int:
             page.wait_for_selector("article.card", timeout=20000)
             bg = page.evaluate("getComputedStyle(document.body).backgroundColor")
             check(bg != "rgb(244, 246, 249)", f"dark mode applies ({bg})")
+            ratio, weight = page.evaluate(JOURNAL_CONTRAST_JS)
+            check(ratio >= 4.5 and weight <= 300, f"dark mode: light journal names stay readable (contrast {ratio}:1, weight {weight})")
             if shots:
                 page.screenshot(path=str(shots / "desktop-dark.png"))
             ctx.close()
