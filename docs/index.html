@@ -89,6 +89,19 @@ select{height:44px;border:1px solid var(--line-2);border-radius:12px;background:
 .fval.on{background:var(--accent-soft)}
 .fval.zero .v{color:var(--faint)}
 .fhint{font-size:12px;color:var(--faint);padding:2px 6px 6px}
+.fnote{font-size:11.5px;line-height:1.4;color:var(--faint);padding:0 6px 6px}
+.fsub{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:9px 6px 3px;border-top:1px dashed var(--line);margin-top:4px}
+.fsub:first-child{border-top:0;margin-top:0;padding-top:2px}
+/* date filter: three quick windows, then the year / month list under "Custom" */
+.dcustom{margin:0 0 4px}
+.dcustom>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;padding:6px;border-radius:8px;font-size:13.5px;color:var(--muted)}
+.dcustom>summary::-webkit-details-marker{display:none}
+.dcustom>summary::before{content:"\25B8";font-size:11px;transition:transform .15s}
+.dcustom[open]>summary::before{transform:rotate(90deg)}
+.dcustom>summary:hover{background:var(--surface-2)}
+.dcustom .badge{background:var(--accent);color:var(--on-accent);border-radius:999px;font-size:11px;padding:1px 7px}
+.dcustom .fvals{padding-left:14px}
+.fval.yr .v{font-weight:700}
 .resultbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px;min-height:30px}
 .count{font-weight:700;font-size:14px;margin-right:4px}
 .active{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
@@ -98,18 +111,16 @@ select{height:44px;border:1px solid var(--line-2);border-radius:12px;background:
 .achip i{font-style:normal;font-size:16px;line-height:1;padding:0 3px}
 .linkish{background:none;border:0;color:var(--accent);cursor:pointer;font-size:12.5px;font-weight:600;padding:4px;text-decoration:underline;text-underline-offset:2px}
 .list{display:flex;flex-direction:column;gap:14px}
-.card{background:var(--surface);border:1px solid var(--line);border-left:4px solid hsl(var(--h,215) var(--edge-s) var(--edge-l));border-radius:var(--radius);padding:16px 18px 14px;box-shadow:var(--shadow)}
+.card{background:var(--surface);border:1px solid var(--line);border-left:4px solid hsl(var(--h,215) calc(var(--edge-s) * var(--k,1)) var(--edge-l));border-radius:var(--radius);padding:16px 18px 14px;box-shadow:var(--shadow);scroll-margin-top:calc(var(--top-h,124px) + 4px)}
+.card.flash{outline:2px solid var(--accent);outline-offset:2px}
 .card.gray{border-left-color:var(--line-2)}
 .card-head{display:flex;align-items:flex-start;gap:12px}
 .meta{font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--accent);flex:1;min-width:0;padding-top:2px;overflow-wrap:anywhere}
 .meta .date,.kicker .date{color:var(--muted);font-weight:400;letter-spacing:.03em}
 .jn{font-weight:300;letter-spacing:.1em}
-.rel{flex:none;text-align:right;line-height:1;cursor:help}
-.rel span{display:block;font-size:9.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
-.rel b{display:block;font-size:22px;font-weight:800;margin-top:3px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .chip{display:inline-flex;align-items:center;max-width:100%;border:0;border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:600;line-height:1.4;cursor:pointer;text-align:left;overflow-wrap:anywhere}
-.chip.t{background:hsl(var(--h,215) var(--chip-s) var(--chip-l));color:hsl(var(--h,215) var(--chip-fs) var(--chip-fl))}
+.chip.t{background:hsl(var(--h,215) calc(var(--chip-s) * var(--k,1)) var(--chip-l));color:hsl(var(--h,215) calc(var(--chip-fs) * var(--k,1)) var(--chip-fl))}
 .chip.t.gray{background:var(--surface-2);color:var(--muted)}
 .chip.k{background:var(--ai-soft);color:var(--ai)}
 .chip.f{background:var(--surface-2);color:var(--muted);border-radius:6px}
@@ -163,7 +174,6 @@ dialog::backdrop{background:rgba(8,12,20,.55)}
 .d-title{font-size:23px;line-height:1.28;margin:10px 0 8px;font-weight:780;overflow-wrap:anywhere}
 .d-authors{font-size:14px;color:var(--muted)}
 .d-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
-.d-actions .rel{margin-left:auto}
 .sec{margin-top:14px;border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:var(--surface)}
 .sec h3{margin:0 0 8px;font-size:11.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);font-weight:800}
 .sec p{margin:0}
@@ -195,7 +205,40 @@ dialog::backdrop{background:rgba(8,12,20,.55)}
 .prose h3{font-size:14.5px;margin:18px 0 4px}
 .prose h3:first-child{margin-top:0}
 .prose p{margin:4px 0 8px;font-size:14px;line-height:1.65}
-.exports{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+.rb-end{margin-left:auto;display:flex;align-items:center;gap:12px}
+.exports{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+/* Browse directory: on wide screens it gets its own column on the right, so it never
+   takes the filters' place. Rows follow the current list; a click jumps to the card. */
+.dir{display:none;position:sticky;top:var(--top-h,124px);max-height:calc(100vh - var(--top-h,124px) - 12px);flex-direction:column;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.dir-head{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 14px;border-bottom:1px solid var(--line)}
+.dir-head strong{font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.dir-head .n{margin-right:auto;font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}
+.dir-head .icon-btn{width:28px;height:28px;font-size:17px}
+.dir-cols,.drow{display:grid;grid-template-columns:minmax(0,1fr) 70px 76px;gap:8px;align-items:center}
+.dir-cols{padding:6px 12px 6px 14px;border-bottom:1px solid var(--line);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.dir-cols span:last-child,.drow .d{text-align:right}
+.dir-list{position:relative;flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;padding:4px 0 8px}
+.drow{width:100%;margin:0;border:0;border-left:3px solid hsl(var(--h,215) calc(var(--edge-s) * var(--k,1)) var(--edge-l));background:none;padding:4px 12px 4px 11px;font-size:12.5px;line-height:1.35;text-align:left;color:var(--text);cursor:pointer}
+.drow.gray{border-left-color:var(--line-2)}
+.drow span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drow .j{color:var(--muted)}
+.drow .d{color:var(--faint);font-size:11.5px;font-variant-numeric:tabular-nums}
+.drow:hover{background:var(--surface-2)}
+.drow.cur{background:var(--accent-soft)}
+.drow.cur .a{font-weight:700}
+.drow:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.dir-empty{padding:14px;font-size:13px;color:var(--faint)}
+.dir-btn{display:none}
+.dir-btn[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+@media (min-width:901px){.facet[data-key="journal"] .fvals{max-height:min(380px,48vh);overflow:auto}}
+@media (min-width:1200px){
+  .dir-btn{display:inline-flex}
+  body.dir-on .layout{max-width:1580px;grid-template-columns:270px minmax(0,1fr) 290px;gap:20px}
+  body.dir-on .top-inner,body.dir-on .foot-inner{max-width:1580px}
+  body.dir-on .dir{display:flex}
+  /* keep "back to top" off the directory: at the right edge of the paper column */
+  body.dir-on .totop{right:calc(max(0px, (100vw - 1580px) / 2) + 16px + 290px + 20px + 12px)}
+}
 .btn:disabled,.icon-btn:disabled{opacity:.4;cursor:default;pointer-events:none}
 .hint{font-weight:500;color:var(--faint);font-size:12.5px}
 .dnav{display:flex;align-items:center;gap:6px;flex:none}
@@ -267,12 +310,20 @@ dialog::backdrop{background:rgba(8,12,20,.55)}
     <div class="resultbar">
       <div id="count" class="count" aria-live="polite"></div>
       <div id="active" class="active"></div>
-      <div class="exports"><span id="exLabel">Export</span><button class="btn small" id="exBib" type="button">BibTeX</button><button class="btn small" id="exRis" type="button">RIS</button></div>
+      <div class="rb-end">
+        <button class="btn small dir-btn" id="dirBtn" type="button" aria-controls="dir" aria-pressed="true"></button>
+        <div class="exports"><span id="exLabel">Export</span><button class="btn small" id="exBib" type="button">BibTeX</button><button class="btn small" id="exRis" type="button">RIS</button></div>
+      </div>
     </div>
     <div id="list" class="list" tabindex="-1"><div class="loading">Loading papers…</div></div>
     <div id="sentinel"></div>
     <div class="more-wrap"><button class="btn" id="more" type="button" hidden></button></div>
   </main>
+  <aside class="dir" id="dir" aria-labelledby="dirTitle">
+    <div class="dir-head"><strong id="dirTitle">Browse</strong><span class="n" id="dirCount"></span><button class="icon-btn" id="dirClose" type="button" aria-label="Hide the directory">&times;</button></div>
+    <div class="dir-cols" aria-hidden="true"><span id="dirA">Authors</span><span id="dirJ">Journal</span><span id="dirD">Date</span></div>
+    <div class="dir-list" id="dirList"></div>
+  </aside>
 </div>
 <footer class="foot"><div class="foot-inner" id="foot"></div></footer>
 
@@ -313,16 +364,144 @@ const REPO_URL = 'https://github.com/WANGYuhan2002/seismohub-lite';
 const ISSUES_URL = REPO_URL + '/issues';
 const BATCH = 40;
 const LS_LANG = 'seismohub-lite:lang';
-const SORTS = ['new', 'rel', 'old', 'title'];
+const LS_DIR = 'seismohub-lite:dir';
+const SORTS = ['new', 'old', 'title'];
+const WINDOWS = ['7', '30']; // quick date windows, in days back from the snapshot date
 const GRAY_TOPICS = new Set(['Off-topic / not seismology', 'Unable to categorize', 'Others']);
 const SOURCE_NAMES = { crossref: 'Crossref', openalex: 'OpenAlex', arxiv: 'arXiv', eth_rc: 'ETH Research Collection', rss: 'publisher RSS feed' };
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+// Fixed topic colours: the desktop app's palette (one Tailwind colour family per
+// topic), given as [hue, saturation factor] for this page's light/dark formula.
+// A topic keeps its colour however the paper counts change; a topic not listed
+// here gets a hue from its name.
+const TOPIC_HUES = {
+  'Full-waveform inversion & adjoint tomography': [258, 1], // violet
+  'Inverse theory & inverse problems': [258, 1], // violet (as in the app)
+  'Seismic anisotropy': [271, 1], // purple
+  'Bayesian inversion & uncertainty quantification': [239, 1], // indigo
+  'Seismic tomography (body & surface wave)': [217, 1], // blue
+  'Volcano, cryosphere, environmental & planetary seismology': [199, 1], // sky
+  'Distributed acoustic sensing & fibre-optic seismology': [189, 1], // cyan
+  'Receiver functions & discontinuity imaging': [173, 1], // teal
+  'Ambient-noise seismology & interferometry': [160, 1], // emerald
+  'Earthquake detection, location & catalogs': [84, 1], // lime
+  'Seismic hazard & strong ground motion': [45, 1], // yellow
+  'Numerical wave propagation & HPC': [38, 1], // amber
+  'Scattering, attenuation & coda (Q)': [25, 1], // orange
+  'Earthquake source & rupture dynamics': [0, 1], // red
+  'Fault mechanics & slow earthquakes': [350, 1], // rose
+  'Induced & reservoir seismicity': [330, 1], // pink
+  'Machine learning in seismology': [292, 1], // fuchsia
+  'Array, ocean-bottom & instrumentation': [215, 0.3], // slate
+  'Crust, lithosphere & mantle structure / geodynamics': [25, 0.18], // stone
+};
+
+// Journals: [short name for the Browse directory, impact factor]. The impact
+// factors are approximate Clarivate JCR values (the latest release known when
+// this table was written, mostly 2025 and 2026). They only order the journal
+// filter and are never shown. 0 means none is listed here; preprint servers,
+// repositories, theses, datasets and meetings always go last.
+const JOURNALS = {
+  'Nature Reviews Earth & Environment': ['Nat Rev EE', 49.7],
+  'Nature': ['Nature', 48.5],
+  'Science': ['Science', 45.8],
+  'Reviews of Geophysics': ['Rev Geophys', 38.5],
+  'Science Bulletin': ['Sci Bull', 21.1],
+  'National Science Review': ['Natl Sci Rev', 17.1],
+  'Nature Geoscience': ['Nat Geosci', 16.1],
+  'Nature Communications': ['Nat Comms', 15.7],
+  'Nature Astronomy': ['Nat Astron', 14.3],
+  'Science Advances': ['Sci Adv', 12.5],
+  'Earth System Science Data': ['ESSD', 11.6],
+  'Reliability Engineering & System Safety': ['RESS', 11.0],
+  'Earth-Science Reviews': ['Earth-Sci Rev', 10.0],
+  'Proceedings of the National Academy of Sciences': ['PNAS', 9.1],
+  'Communications Earth & Environment': ['Comms Earth Env', 8.9],
+  'Geoscience Frontiers': ['Geosci Front', 8.9],
+  'IEEE Transactions on Geoscience and Remote Sensing': ['IEEE TGRS', 8.6],
+  'Engineering Geology': ['Eng Geol', 8.4],
+  'AGU Advances': ['AGU Adv', 7.4],
+  'Journal of Building Engineering': ['J Build Eng', 7.4],
+  'Journal of Hydrology': ['J Hydrol', 6.3],
+  'Computers and Geotechnics': ['Comput Geotech', 6.2],
+  'IEEE Transactions on Signal Processing': ['IEEE TSP', 5.8],
+  'Geology': ['Geology', 5.4],
+  'The Seismic Record': ['TSR', 5.3],
+  'International Journal of Greenhouse Gas Control': ['IJGGC', 5.2],
+  'GRL': ['GRL', 5.0], 'Geophysical Research Letters': ['GRL', 5.0],
+  'Water Resources Research': ['WRR', 5.0],
+  'Surveys in Geophysics': ['Surv Geophys', 4.9],
+  'Geoscientific Model Development': ['GMD', 4.9],
+  'EPSL': ['EPSL', 4.8], 'Earth and Planetary Science Letters': ['EPSL', 4.8],
+  'The European Physical Journal C': ['EPJ C', 4.8],
+  'Natural Hazards and Earth System Sciences': ['NHESS', 4.6],
+  'The Cryosphere': ['Cryosphere', 4.6],
+  'Earthquake Engineering & Structural Dynamics': ['EESD', 4.6],
+  'Journal of Advances in Modeling Earth Systems': ['JAMES', 4.6],
+  'International Journal of Disaster Risk Reduction': ['IJDRR', 4.5],
+  'IEEE Geoscience and Remote Sensing Letters': ['IEEE GRSL', 4.4],
+  'Computers & Geosciences': ['Comput Geosci', 4.2],
+  'Ultrasonics': ['Ultrasonics', 4.1],
+  'Remote Sensing': ['Remote Sens', 4.1],
+  'JGR: Solid Earth': ['JGR-SE', 4.0], 'Journal of Geophysical Research: Solid Earth': ['JGR-SE', 4.0],
+  'Scientific Reports': ['Sci Rep', 3.9],
+  'Space Weather': ['Space Weather', 3.8],
+  'JGR: Planets': ['JGR-P', 3.7],
+  'JGR: Earth Surface': ['JGR-ES', 3.6],
+  'Tectonics': ['Tectonics', 3.5],
+  'Sensors': ['Sensors', 3.5],
+  'Physics in Medicine and Biology': ['Phys Med Biol', 3.5],
+  'Earthquake Spectra': ['EQ Spectra', 3.4],
+  'Seismological Research Letters': ['SRL', 3.2],
+  'Geophysics (SEG)': ['Geophysics', 3.1], 'Geophysics': ['Geophysics', 3.1],
+  'G3': ['G3', 3.0], 'Geochemistry, Geophysics, Geosystems': ['G3', 3.0],
+  'Solid Earth': ['Solid Earth', 3.0],
+  'Bulletin of Volcanology': ['Bull Volcanol', 3.0],
+  'Earth Surface Processes and Landforms': ['ESPL', 3.0],
+  'BSSA': ['BSSA', 2.9], 'Bulletin of the Seismological Society of America': ['BSSA', 2.9],
+  'Icarus': ['Icarus', 2.9],
+  'Earth and Space Science': ['ESS', 2.9],
+  'GJI': ['GJI', 2.8], 'Geophysical Journal International': ['GJI', 2.8],
+  'Earth Planets and Space': ['EPS', 2.8],
+  'Tectonophysics': ['Tectonophys', 2.7],
+  'PLOS ONE': ['PLOS ONE', 2.6],
+  'Journal of Volcanology and Geothermal Research': ['JVGR', 2.4],
+  'Physics of the Earth and Planetary Interiors': ['PEPI', 2.4],
+  'The Journal of the Acoustical Society of America': ['JASA', 2.3],
+  'Acta Geophysica': ['Acta Geophys', 2.1],
+  'Journal of Applied Geophysics': ['J Appl Geophys', 2.1],
+  'Computational Geosciences': ['Comput Geosci', 2.1],
+  'Geophysical Prospecting': ['Geophys Prospect', 2.0],
+  'Pure and Applied Geophysics': ['PAGEOPH', 1.9],
+  'Nonlinear Processes in Geophysics': ['NPG', 1.7],
+  'Annales Geophysicae': ['Ann Geophys', 1.7],
+  'Journal of Seismology': ['J Seismol', 1.6],
+  'Journal of Geophysics and Engineering': ['J Geophys Eng', 1.6],
+  'Netherlands Journal of Geosciences – Geologie en Mijnbouw': ['Neth J Geosci', 1.4],
+  'International Journal of Physical Modelling in Geotechnics': ['IJPMG', 1.4],
+  'Earthquake Science': ['EQ Sci', 1.2],
+  'The Leading Edge': ['TLE', 1.1],
+  'Chinese Journal of Geophysics': ['Chin J Geophys', 1.0],
+  'Seismica': ['Seismica', 0],
+  'JGR: Machine Learning and Computation': ['JGR-ML', 0],
+  'Journal of Geophysical Research': ['JGR', 0],
+  'Nature Subject: Seismology (aggregated feed)': ['Nature Seismology', 0],
+  'Proceedings of the International Ocean Discovery Program. Expedition reports': ['Proc IODP', 0],
+  'arXiv': ['arXiv', 0], 'ESS Open Archive': ['ESSOAr', 0], 'EarthArXiv': ['EarthArXiv', 0], 'Research Square': ['Res Square', 0],
+  'Zenodo': ['Zenodo', 0], 'Figshare': ['Figshare', 0], 'HAL': ['HAL', 0], 'OSTI': ['OSTI', 0], 'WorkflowHub': ['WorkflowHub', 0],
+  'EGU General Assembly': ['EGU GA', 0], 'Earth System Science Data Discussions': ['ESSD Disc', 0], 'Copernicus': ['Copernicus', 0],
+  'GFZ Data Services': ['GFZ Data', 0], 'GFZ Publication Database': ['GFZ Pub', 0],
+  'ETH Zurich (Data Collection)': ['ETH Data', 0], 'ETH Zurich (Dataset)': ['ETH Data', 0],
+  'ETH Zurich (Doctoral Thesis)': ['ETH PhD', 0], 'ETH Zurich (Master Thesis)': ['ETH MSc', 0],
+  'Stanford Digital Repository': ['Stanford DR', 0], 'NSF Seismological Facility for the Advancement of Geoscience (SAGE)': ['SAGE', 0],
+  'International Snow Science Workshop (ISSW)': ['ISSW', 0],
+};
+
 const FACETS = [
+  { key: 'date', get: p => p._dv, open: true, fmt: v => fmtPeriod(v) },
   { key: 'topic', get: p => p.tp, open: true, fmt: v => term(v) },
-  { key: 'journal', get: p => [p.j], search: true, limit: 25, open: true },
-  { key: 'year', get: p => (p.d ? [p.d.slice(0, 4)] : []), order: 'value' },
-  { key: 'month', get: p => (p.d && p.d.length >= 7 ? [p.d.slice(0, 7)] : []), order: 'value', fmt: v => fmtMonth(v) },
+  { key: 'journal', get: p => [p.j], search: true, open: true },
   { key: 'keyword', get: p => p._kwl, search: true, limit: 25, fmt: v => kwLabel(v) },
   { key: 'institution', get: p => p.in, search: true, limit: 25 },
   { key: 'method', get: p => p.fc.m, fmt: v => term(v) },
@@ -404,16 +583,21 @@ const ZH_TERMS = {
 const I18N = {
   en: {
     searchPh: 'Search title, authors, abstract, journal, keywords, DOI…',
-    sort_new: 'Newest', sort_rel: 'Relevance', sort_old: 'Oldest', sort_title: 'Title A–Z', sortLabel: 'Sort',
+    sort_new: 'Newest', sort_old: 'Oldest', sort_title: 'Title A–Z', sortLabel: 'Sort',
     filters: 'Filters', clearAll: 'Clear all', about: 'About', langBtn: '中文', search: 'Search',
     stats: (n, d) => `${n} papers · snapshot ${d}`,
     count: (n, total) => (n === total ? `${total} papers` : `${n} of ${total} papers`),
     showN: n => `Show ${n} papers`,
-    f_topic: 'Topic', f_journal: 'Journal', f_year: 'Year', f_month: 'Month', f_keyword: 'Keyword',
+    f_date: 'Date', f_topic: 'Topic', f_journal: 'Journal', f_keyword: 'Keyword',
     f_institution: 'Institution', f_method: 'Method', f_data: 'Data', f_target: 'Target', f_role: 'Paper type',
     fsearch: 'Filter this list…', fmore: n => `${n} more — type above to narrow`, fnone: 'No matches',
     remove: 'Remove filter', filterBy: v => `Filter by “${v}”`,
-    relevance: 'Relevance', relTip: 'AI-assigned relevance score (0–10) for the curator’s research topics',
+    win7: 'Last 7 days', win30: 'Last 30 days', winAll: 'All dates', custom: 'Custom: year / month',
+    winNote: d => `Counted back from the snapshot date, ${d}.`,
+    jNote: 'Highest impact factor first; preprints and open platforms last.',
+    jOther: 'Other journals', jPre: 'Preprints & open platforms',
+    dir: 'Browse', dirShow: 'Show the Browse directory', dirHide: 'Hide the Browse directory',
+    dirA: 'Authors', dirJ: 'Journal', dirD: 'Date', dirTip: 'Click a row to jump to that paper',
     aiTip: 'Generated offline by AI — may contain errors',
     openDetail: 'Abstract & AI analysis', doi: 'DOI', link: 'Link',
     abstract: 'Abstract', noAbstract: 'No abstract is available for this paper.', abstractWithheld: 'The abstract is not shown for this paper.',
@@ -425,7 +609,7 @@ const I18N = {
     aiBanner: m => `Everything below was generated offline by ${m || 'an AI model'} from the abstract and public metadata. It may contain errors and is not endorsed by the authors or the publisher — always check the original article.`,
     sec_takeaway: 'One-sentence takeaway', sec_structured: 'Structured analysis', sec_summary: 'AI summary',
     sec_kc: 'Key contributions', sec_me: 'Methods', sec_de: 'Data & experiments', sec_fig: 'Figures',
-    sec_li: 'Limitations', sec_tm: 'Topic match', sec_facets: 'Facets', sec_fu: 'AI follow-up ideas for the curator’s group', sec_ev: 'Evidence',
+    sec_li: 'Limitations', sec_tm: 'Topic match', sec_facets: 'Facets', sec_ev: 'Evidence',
     sa_method: 'Method', sa_data: 'Data', sa_results: 'Results', sa_limitations: 'Limitations', sa_novelty: 'Novelty',
     saSource: s => `Source: ${s}`, confidence: 'confidence',
     ev_on: 'Based on', ev_sources: 'Used sources', ev_model: 'Model', ev_notes: 'Notes',
@@ -448,23 +632,28 @@ const I18N = {
       ['What is this?', 'SeismoHub Lite is a read-only, static snapshot of SeismoHub, a personal literature tracker for seismology and wave physics. It lists recent papers with their bibliographic metadata, original abstracts and the AI analyses that were generated offline. It contains no PDFs, and the interactive AI chat of the desktop app is not included.'],
       ['Where the data comes from', 'Titles, authors, journals, dates, DOIs and abstracts come from public bibliographic metadata: Crossref, OpenAlex, arXiv, the ETH Research Collection and publisher RSS feeds. Journal names are lightly normalised. Abstracts are shown as provided, except that whitespace is normalised, leading “Abstract/Summary” headings are dropped and e-mail addresses are masked.'],
       ['Copyright and takedown', 'Titles and abstracts are the work of their authors and are often © the publisher. They are reproduced here solely for non-commercial scholarly reference, each with a link to the original article; this site claims no rights in them. If you hold rights in an abstract and would like it (or a whole entry) removed, please open an issue on GitHub and it will be removed promptly.'],
-      ['AI-generated content', 'Everything marked “AI” — takeaways, summaries, structured analyses, key contributions, methods, data notes, limitations, figure notes, topic labels, keywords, facets and relevance scores — was generated offline with Google Gemini from each paper’s abstract, public metadata and web search results; no full-text PDFs were used. It may be inaccurate or incomplete, is not endorsed by the authors or publishers, and does not replace reading the paper. No AI model runs on this website and nothing you type here is sent anywhere.'],
-      ['Privacy', 'This page is plain static files served by GitHub Pages. It sets no cookies and loads no analytics, fonts, scripts or trackers from third parties; search and filtering run entirely in your browser. Only your language choice is remembered, in your browser’s local storage. As the host, GitHub may keep standard server logs (see GitHub’s privacy statement). Outbound links go straight to doi.org, arxiv.org or the publisher.'],
+      ['AI-generated content', 'Everything marked “AI” — takeaways, summaries, structured analyses, key contributions, methods, data notes, limitations, figure notes, topic labels, keywords and facets — was generated offline with Google Gemini from each paper’s abstract, public metadata and web search results; no full-text PDFs were used. It may be inaccurate or incomplete, is not endorsed by the authors or publishers, and does not replace reading the paper. No AI model runs on this website and nothing you type here is sent anywhere.'],
+      ['Privacy', 'This page is plain static files served by GitHub Pages. It sets no cookies and loads no analytics, fonts, scripts or trackers from third parties; search and filtering run entirely in your browser. Only your language choice, and whether the Browse directory is shown, are remembered in your browser’s local storage. As the host, GitHub may keep standard server logs (see GitHub’s privacy statement). Outbound links go straight to doi.org, arxiv.org or the publisher.'],
       ['Snapshot', `Exported on ${d}; ${n} papers.`],
     ],
   },
   zh: {
     searchPh: '搜索标题、作者、摘要、期刊、关键词、DOI…',
-    sort_new: '最新', sort_rel: '相关度', sort_old: '最早', sort_title: '标题 A–Z', sortLabel: '排序',
+    sort_new: '最新', sort_old: '最早', sort_title: '标题 A–Z', sortLabel: '排序',
     filters: '筛选', clearAll: '全部清除', about: '关于', langBtn: 'EN', search: '搜索',
     stats: (n, d) => `${n} 篇 · 快照日期 ${d}`,
     count: (n, total) => (n === total ? `共 ${total} 篇` : `${n} / ${total} 篇`),
     showN: n => `查看 ${n} 篇`,
-    f_topic: '主题', f_journal: '期刊', f_year: '年份', f_month: '月份', f_keyword: '关键词',
+    f_date: '日期', f_topic: '主题', f_journal: '期刊', f_keyword: '关键词',
     f_institution: '机构', f_method: '方法', f_data: '数据', f_target: '研究对象', f_role: '文章类型',
     fsearch: '在列表中查找…', fmore: n => `还有 ${n} 项，可在上方输入查找`, fnone: '没有匹配项',
     remove: '移除筛选', filterBy: v => `按“${v}”筛选`,
-    relevance: '相关度', relTip: 'AI 按整理者的研究方向给出的相关度评分（0–10）',
+    win7: '最近 7 天', win30: '最近 30 天', winAll: '全部日期', custom: '自定义：年 / 月',
+    winNote: d => `从快照日期 ${d} 往前算。`,
+    jNote: '按影响因子从高到低排列；预印本与开放平台排在最后。',
+    jOther: '其他期刊', jPre: '预印本与开放平台',
+    dir: '目录', dirShow: '显示目录', dirHide: '隐藏目录',
+    dirA: '作者', dirJ: '期刊', dirD: '日期', dirTip: '点一行，跳到那篇文章',
     aiTip: '由 AI 离线生成，可能有误',
     openDetail: '摘要与 AI 分析', doi: 'DOI', link: '原文链接',
     abstract: '原文摘要', noAbstract: '这篇文章暂无摘要。', abstractWithheld: '这篇文章的摘要不予显示。',
@@ -476,7 +665,7 @@ const I18N = {
     aiBanner: m => `以下内容由 ${m || 'AI 模型'} 根据摘要和公开元数据离线生成，可能有误，也未经作者或出版社认可，请以原文为准。`,
     sec_takeaway: '一句话摘要', sec_structured: '结构化分析', sec_summary: 'AI 总结',
     sec_kc: '主要贡献', sec_me: '研究方法', sec_de: '数据与实验', sec_fig: '图表解析',
-    sec_li: '局限性', sec_tm: '主题匹配', sec_facets: '分面标签', sec_fu: 'AI 给整理者课题组的后续研究建议', sec_ev: '分析依据',
+    sec_li: '局限性', sec_tm: '主题匹配', sec_facets: '分面标签', sec_ev: '分析依据',
     sa_method: '方法', sa_data: '数据', sa_results: '结果', sa_limitations: '局限', sa_novelty: '创新点',
     saSource: s => `来源：${s}`, confidence: '置信度',
     ev_on: '依据', ev_sources: '参考来源', ev_model: '模型', ev_notes: '说明',
@@ -499,20 +688,20 @@ const I18N = {
       ['这是什么？', 'SeismoHub Lite 是 SeismoHub 的只读静态快照。SeismoHub 是一个个人用的地震学与波动物理文献追踪工具。本站列出近期文章的书目信息、原文摘要，以及离线生成好的 AI 分析。本站不含 PDF，也没有桌面版里的 AI 对话功能。'],
       ['数据来源', '标题、作者、期刊、日期、DOI 和摘要来自公开的书目元数据：Crossref、OpenAlex、arXiv、ETH Research Collection 和出版社的 RSS。期刊名做了少量归并。摘要按原样显示，只规整了空白、去掉开头的“Abstract/Summary”字样，并隐去了邮箱地址。'],
       ['版权与删除请求', '标题和摘要是作者的作品，版权通常归出版社所有。本站转载它们仅用于非商业的学术参考，每篇都附原文链接，不对其主张任何权利。如果你是权利人，希望删除某篇摘要或整条记录，请在 GitHub 上提交 issue，我们会尽快移除。'],
-      ['AI 生成内容', '所有标有“AI”的内容，包括一句话摘要、总结、结构化分析、主要贡献、方法、数据、局限性、图表解析、主题标签、关键词、分面标签和相关度评分，都是离线用 Google Gemini 根据每篇文章的摘要、公开元数据和网络搜索结果生成的，没有使用全文 PDF。这些内容可能不准确或不完整，未经作者或出版社认可，不能代替阅读原文。本网站运行时不调用任何 AI，你在这里输入的内容也不会发送到任何地方。'],
-      ['隐私', '本页是由 GitHub Pages 托管的纯静态文件，不设置 cookie，也不加载任何第三方的统计、字体、脚本或追踪器；搜索和筛选完全在你的浏览器里进行。只有你选择的语言会保存在浏览器的本地存储里。GitHub 作为托管方可能保留常规的服务器日志（见 GitHub 隐私声明）。外链直接指向 doi.org、arxiv.org 或出版社。'],
+      ['AI 生成内容', '所有标有“AI”的内容，包括一句话摘要、总结、结构化分析、主要贡献、方法、数据、局限性、图表解析、主题标签、关键词和分面标签，都是离线用 Google Gemini 根据每篇文章的摘要、公开元数据和网络搜索结果生成的，没有使用全文 PDF。这些内容可能不准确或不完整，未经作者或出版社认可，不能代替阅读原文。本网站运行时不调用任何 AI，你在这里输入的内容也不会发送到任何地方。'],
+      ['隐私', '本页是由 GitHub Pages 托管的纯静态文件，不设置 cookie，也不加载任何第三方的统计、字体、脚本或追踪器；搜索和筛选完全在你的浏览器里进行。只有你选择的语言和是否显示目录会保存在浏览器的本地存储里。GitHub 作为托管方可能保留常规的服务器日志（见 GitHub 隐私声明）。外链直接指向 doi.org、arxiv.org 或出版社。'],
       ['快照', `导出于 ${d}，共 ${n} 篇。`],
     ],
   },
 };
 
 /* ------------------------------------------------------------------ state */
-const S = { lang: 'en', q: '', sort: 'new', sel: {}, fq: {}, p: null, pushed: false, shown: 0, tokens: [], hlRe: null, hlTest: null };
+// win: '' or one of WINDOWS. It and a custom date selection (S.sel.date) exclude each other.
+const S = { lang: 'en', q: '', sort: 'new', win: '', sel: {}, fq: {}, p: null, pushed: false, shown: 0, tokens: [], hlRe: null, hlTest: null };
 for (const f of FACETS) { S.sel[f.key] = new Set(); S.fq[f.key] = ''; }
 const DATA = { papers: [], byId: new Map(), generated: '', ready: false, absReady: false, absFailed: false };
 const KW_LABEL = new Map(); // lower-case keyword -> its most common original spelling
-const HUES = new Map();
-let computed = { results: [], counts: {} };
+let computed = { results: [], counts: {}, win: { all: 0, 7: 0, 30: 0 } };
 let lastHash = null;
 
 /* ------------------------------------------------------------------ helpers */
@@ -530,8 +719,40 @@ const isGray = t => GRAY_TOPICS.has(t);
 const term = v => (isZh() && ZH_TERMS[v]) || v;
 const kwLabel = v => KW_LABEL.get(v) || v;
 const hasAbs = p => p.af === 'ok' || p.af === 'short' || p.af === 'snippet';
-const hueOf = t => (HUES.has(t) ? HUES.get(t) : 215);
 const collator = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
+function topicHue(t) {
+  if (TOPIC_HUES[t]) return TOPIC_HUES[t];
+  let x = 0;
+  for (const ch of String(t)) x = (x * 31 + ch.codePointAt(0)) >>> 0;
+  return [x % 360, 1];
+}
+// Give an element its topic colour (cards, topic chips and directory rows use --h and --k).
+// Both are always set: custom properties inherit, so a chip must not pick up its card's.
+function paint(el, t) {
+  const [hue, k] = topicHue(t);
+  el.style.setProperty('--h', hue);
+  el.style.setProperty('--k', k);
+}
+const normJ = s => String(s || '').normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase()
+  .replace(/[\s\-_.,:;/\\()[\]{}'"!?–—]+/g, ' ').replace(/\s+/g, ' ').trim();
+const J_TABLE = new Map(Object.entries(JOURNALS).map(([name, v]) => [normJ(name), v]));
+const J_INFO = new Map();
+// Short name, impact factor and filter group of a journal: 0 = impact factor listed,
+// 1 = other journals ("Others", the unknown venue, last), 2 = preprints and open platforms.
+function journalInfo(j) {
+  let m = J_INFO.get(j);
+  if (!m) {
+    const hit = J_TABLE.get(normJ(j));
+    const pre = MISC_VENUE.test(j);
+    m = { ab: (hit && hit[0]) || j, jif: j === 'Others' ? -1 : (hit ? hit[1] : 0), grp: pre ? 2 : (hit && hit[1] > 0 ? 0 : 1) };
+    J_INFO.set(j, m);
+  }
+  return m;
+}
+function journalCmp(a, b) {
+  const x = journalInfo(a[0]); const y = journalInfo(b[0]);
+  return (x.grp - y.grp) || (y.jif - x.jif) || (b[1] - a[1]) || collator.compare(a[0], b[0]);
+}
 
 function add(el, kids) {
   for (const k of kids) {
@@ -560,6 +781,7 @@ const ICONS = {
   building: 'M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16M15 9h4a1 1 0 0 1 1 1v11M3 21h18M8 8h3M8 12h3M8 16h3',
   spark: 'M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2-2.2-.8 2.2-.8z',
   filter: 'M4 5h16l-6 8v5l-4 2v-7z',
+  list: 'M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01',
   tag: 'M3 4v7.6a1.5 1.5 0 0 0 .44 1.06l7.9 7.9a2 2 0 0 0 2.83 0l6.4-6.4a2 2 0 0 0 0-2.83l-7.9-7.9A1.5 1.5 0 0 0 11.6 3H4a1 1 0 0 0-1 1zM7.5 7.5h.01',
 };
 // Filled glyphs (drawn with fill, not stroke).
@@ -594,6 +816,12 @@ function fmtMonth(v) {
   const m = Number(String(v).slice(5, 7));
   if (!m) return String(v);
   return isZh() ? `${v.slice(0, 4)} 年 ${m} 月` : `${MONTHS[m - 1]} ${v.slice(0, 4)}`;
+}
+// A value of the date filter: a year ("2026") or a month ("2026-11").
+function fmtPeriod(v) {
+  v = String(v);
+  if (v.length === 4) return isZh() ? `${v} 年` : v;
+  return fmtMonth(v);
 }
 function hl(text) {
   text = String(text || '');
@@ -633,26 +861,30 @@ const dlg = $('#detail'); const dBody = $('#dBody'); const dKicker = $('#dKicker
 const aboutDlg = $('#about'); const aBody = $('#aBody');
 
 /* ------------------------------------------------------------------ data */
+const dayOf = s => (/^\d{4}-\d{2}-\d{2}$/.test(s) ? Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)) / 864e5 : null);
 function init(doc) {
   DATA.generated = String(doc.generated || '');
   const raw = arr(doc.papers);
-  const topicCount = new Map();
   const kwForms = new Map();
+  let newest = null;
   // Older snapshots kept abstracts inside papers.json; then nothing else is fetched.
   if (raw.some(p => p && typeof p.ab === 'string' && p.ab)) DATA.absReady = true;
   for (const p of raw) {
     if (!p || !/^[0-9a-f]{16}$/.test(p.id)) continue;
     p.t = String(p.t || 'Untitled'); p.a = arr(p.a); p.j = String(p.j || 'Others'); p.d = String(p.d || '');
     p.doi = String(p.doi || ''); p.url = safeHttp(p.url); p.tp = arr(p.tp).length ? arr(p.tp) : ['Others'];
-    p.in = arr(p.in); p.kw = arr(p.kw); p.tk = arr(p.tk); p.ab = String(p.ab || ''); p.rel = Number(p.rel) || 0;
+    p.in = arr(p.in); p.kw = arr(p.kw); p.tk = arr(p.tk); p.ab = String(p.ab || '');
     p.fc = p.fc || {}; p.fc.m = arr(p.fc.m); p.fc.dt = arr(p.fc.dt); p.fc.tg = arr(p.fc.tg); p.fc.r = String(p.fc.r || '');
     p._kwl = [...new Set(p.kw.map(k => String(k).toLowerCase()))];
     p._dk = p.d.length === 4 ? p.d + '-00-00' : p.d;
+    // date filter values: the year, and the month when the date has one
+    p._dv = /^\d{4}/.test(p.d) ? (p.d.length >= 7 ? [p.d.slice(0, 4), p.d.slice(0, 7)] : [p.d.slice(0, 4)]) : [];
+    p._day = dayOf(p.d);
+    if (p._day != null && (newest == null || p._day > newest)) newest = p._day;
     p._f = {};
     for (const f of FACETS) p._f[f.key] = f.get(p);
     DATA.papers.push(p);
     DATA.byId.set(p.id, p);
-    for (const t of p.tp) topicCount.set(t, (topicCount.get(t) || 0) + 1);
     for (const k of p.kw) {
       const key = String(k).toLowerCase();
       let forms = kwForms.get(key);
@@ -660,8 +892,10 @@ function init(doc) {
       forms.set(k, (forms.get(k) || 0) + 1);
     }
   }
-  [...topicCount.entries()].filter(([t]) => !isGray(t)).sort((a, b) => b[1] - a[1])
-    .forEach(([t], i) => HUES.set(t, Math.round((212 + i * 137.508) % 360)));
+  // Days before the snapshot date (the newest paper's date if the snapshot has none).
+  // Only full dates get an age, so a year-only date is never "in the last 7 days".
+  const ref = dayOf(DATA.generated) != null ? dayOf(DATA.generated) : newest;
+  for (const p of DATA.papers) p._age = p._day != null && ref != null ? ref - p._day : null;
   for (const [key, forms] of kwForms) KW_LABEL.set(key, [...forms.entries()].sort((a, b) => b[1] - a[1])[0][0]);
   DATA.ready = true;
 }
@@ -699,15 +933,19 @@ function compute() {
   const P = DATA.papers; const n = P.length;
   const toks = S.tokens.map(fold);
   const fOk = {};
+  const win = Number(S.win) || 0;
   for (const f of FACETS) {
     const sel = S.sel[f.key];
-    if (!sel.size) { fOk[f.key] = null; continue; }
+    const w = f.key === 'date' ? win : 0; // the date filter is a window or a custom choice of years / months
+    if (!sel.size && !w) { fOk[f.key] = null; continue; }
     const ok = new Uint8Array(n);
-    for (let i = 0; i < n; i++) { for (const v of P[i]._f[f.key]) { if (sel.has(v)) { ok[i] = 1; break; } } }
+    if (w) { for (let i = 0; i < n; i++) { const a = P[i]._age; if (a != null && a < w) ok[i] = 1; } }
+    else for (let i = 0; i < n; i++) { for (const v of P[i]._f[f.key]) { if (sel.has(v)) { ok[i] = 1; break; } } }
     fOk[f.key] = ok;
   }
   const counts = {}; for (const f of FACETS) counts[f.key] = new Map();
   const bump = (key, vals) => { const m = counts[key]; for (const v of vals) m.set(v, (m.get(v) || 0) + 1); };
+  const wc = { all: 0, 7: 0, 30: 0 }; // like any facet count: papers that pass every filter except the date
   const results = [];
   for (let i = 0; i < n; i++) {
     const p = P[i];
@@ -716,24 +954,25 @@ function compute() {
     for (const f of FACETS) { const ok = fOk[f.key]; if (ok && !ok[i]) { fails++; failKey = f.key; if (fails > 1) break; } }
     if (fails === 0) { results.push(p); for (const f of FACETS) bump(f.key, p._f[f.key]); }
     else if (fails === 1) bump(failKey, p._f[failKey]);
+    if (fails === 0 || (fails === 1 && failKey === 'date')) {
+      wc.all++;
+      const a = p._age;
+      if (a != null) { if (a < 30) wc[30]++; if (a < 7) wc[7]++; }
+    }
   }
   const byDate = (a, b) => (a._dk < b._dk ? 1 : a._dk > b._dk ? -1 : (a.id < b.id ? -1 : 1));
   if (S.sort === 'old') results.sort((a, b) => byDate(b, a));
-  else if (S.sort === 'rel') results.sort((a, b) => (b.rel - a.rel) || byDate(a, b));
   else if (S.sort === 'title') results.sort((a, b) => collator.compare(a.t, b.t) || byDate(a, b));
   else results.sort(byDate);
-  return { results, counts };
+  return { results, counts, win: wc };
 }
 
 /* ------------------------------------------------------------------ render: list */
-function relNode(p) {
-  return h('div', { class: 'rel', title: T('relTip') }, h('span', null, T('relevance')), h('b', null, String(p.rel)));
-}
 // In Chinese the chip shows the translated term; the tooltip keeps the English original.
 const chipTip = v => (term(v) !== v ? `${T('filterBy')(term(v))} · ${v}` : T('filterBy')(v));
 function topicChip(t) {
   const b = h('button', { class: 'chip t' + (isGray(t) ? ' gray' : '') + (S.sel.topic.has(t) ? ' sel' : ''), type: 'button', 'data-facet': 'topic', 'data-value': t, title: chipTip(t) }, term(t));
-  if (!isGray(t)) b.style.setProperty('--h', hueOf(t));
+  if (!isGray(t)) paint(b, t);
   return b;
 }
 function kwChip(k) {
@@ -775,15 +1014,13 @@ function journalKicker(p) {
 function card(p) {
   const gray = isGray(p.tp[0]);
   const el = h('article', { class: 'card' + (gray ? ' gray' : '') });
-  if (!gray) el.style.setProperty('--h', hueOf(p.tp[0]));
+  if (!gray) paint(el, p.tp[0]);
   const tk = pick(p.tk);
   let absOpen = false;
   if (p.ab && S.hlTest) { S.hlTest.lastIndex = 0; absOpen = S.hlTest.test(p.ab); }
   const absPending = !p.ab && !DATA.absReady && hasAbs(p);
   return add(el, [
-    h('div', { class: 'card-head' },
-      h('div', { class: 'meta' }, journalKicker(p)),
-      relNode(p)),
+    h('div', { class: 'card-head' }, h('div', { class: 'meta' }, journalKicker(p))),
     h('div', { class: 'chips' }, p.tp.map(topicChip)),
     h('h2', { class: 'title' }, h('a', { href: '#p=' + p.id, 'data-open': p.id }, hl(p.t))),
     p.a.length ? h('div', { class: 'authors' }, authorsLine(p.a, 8)) : null,
@@ -800,6 +1037,7 @@ function card(p) {
 }
 function renderList(keepShown) {
   const target = keepShown ? Math.max(S.shown, BATCH) : BATCH;
+  if (spy) { spy.disconnect(); spyOn.clear(); }
   listEl.replaceChildren();
   S.shown = 0;
   if (!computed.results.length) {
@@ -813,7 +1051,12 @@ function renderList(keepShown) {
 function appendBatch(n) {
   const frag = document.createDocumentFragment();
   const end = Math.min(computed.results.length, S.shown + n);
-  for (let i = S.shown; i < end; i++) frag.append(card(computed.results[i]));
+  for (let i = S.shown; i < end; i++) {
+    const c = card(computed.results[i]);
+    c.dataset.i = String(i); // its row in the Browse directory
+    if (spy) spy.observe(c);
+    frag.append(c);
+  }
   listEl.append(frag);
   S.shown = end;
   updateMore();
@@ -829,18 +1072,64 @@ function buildFacets() {
   facetsEl.replaceChildren(...FACETS.map(f => {
     const det = h('details', { class: 'facet', 'data-key': f.key, open: !!f.open || S.sel[f.key].size > 0 },
       h('summary', null, h('span', { class: 'flabel' }), h('span', { class: 'badge', hidden: true })));
+    if (f.key === 'date') {
+      det.append(h('div', { class: 'fvals fwin', role: 'radiogroup' }),
+        h('details', { class: 'dcustom', open: S.sel.date.size > 0 },
+          h('summary', null, h('span', { class: 'clabel' }), h('span', { class: 'badge', hidden: true })),
+          h('div', { class: 'fvals' })),
+        h('div', { class: 'fnote' }));
+      return det;
+    }
     if (f.search) {
       const inp = h('input', { class: 'fsearch', type: 'search', autocomplete: 'off', spellcheck: 'false' });
       inp.addEventListener('input', () => { S.fq[f.key] = inp.value; renderFacet(f); });
       det.append(inp);
     }
+    if (f.key === 'journal') det.append(h('div', { class: 'fnote' }));
     det.append(h('div', { class: 'fvals' }));
     return det;
   }));
 }
+/* The date filter: three quick windows (last 7 / 30 days, all), then "Custom" with
+   the months (and the years, once the list spans more than one). */
+function renderDateFacet(det) {
+  const sel = S.sel.date; const wc = computed.win;
+  det.querySelector('.flabel').textContent = T('f_date');
+  const nOn = sel.size + (S.win ? 1 : 0);
+  const badge = det.querySelector(':scope > summary .badge'); badge.hidden = !nOn; badge.textContent = String(nOn);
+  const allOn = !S.win && !sel.size;
+  const radio = (w, label, n) => {
+    const on = w ? S.win === w : allOn;
+    return h('label', { class: 'fval' + (on ? ' on' : '') + (n ? '' : ' zero') },
+      h('input', { type: 'radio', name: 'win', value: w, checked: on }),
+      h('span', { class: 'v' }, label), h('span', { class: 'n' }, fmtN(n)));
+  };
+  const fwin = det.querySelector('.fwin');
+  fwin.setAttribute('aria-label', T('f_date'));
+  put(fwin, radio('7', T('win7'), wc[7]), radio('30', T('win30'), wc[30]), radio('', T('winAll'), wc.all));
+  const countMap = computed.counts.date || new Map();
+  const entries = [...countMap.entries()];
+  for (const v of sel) if (!countMap.has(v)) entries.push([v, 0]);
+  const key = v => (v.length === 4 ? v + '-99' : v); // a year sorts just above its months
+  entries.sort((a, b) => (key(a[0]) < key(b[0]) ? 1 : key(a[0]) > key(b[0]) ? -1 : 0));
+  const years = new Set(entries.map(([v]) => v.slice(0, 4)));
+  const rows = entries.filter(([v]) => v.length > 4 || years.size > 1 || sel.has(v));
+  const custom = det.querySelector('.dcustom');
+  custom.querySelector('.clabel').textContent = T('custom');
+  const cb = custom.querySelector('.badge'); cb.hidden = !sel.size; cb.textContent = String(sel.size);
+  if (sel.size) custom.open = true;
+  put(custom.querySelector('.fvals'), rows.length ? rows.map(([v, n]) => {
+    const on = sel.has(v);
+    return h('label', { class: 'fval' + (on ? ' on' : '') + (n ? '' : ' zero') + (v.length === 4 ? ' yr' : '') },
+      h('input', { type: 'checkbox', 'data-v': v, checked: on }),
+      h('span', { class: 'v' }, fmtPeriod(v)), h('span', { class: 'n' }, fmtN(n)));
+  }) : h('div', { class: 'fhint' }, T('fnone')));
+  det.querySelector(':scope > .fnote').textContent = T('winNote')(DATA.generated || '—');
+}
 function renderFacet(f) {
   const det = facetsEl.querySelector(`.facet[data-key="${f.key}"]`);
   if (!det) return;
+  if (f.key === 'date') { renderDateFacet(det); return; }
   const sel = S.sel[f.key];
   const countMap = computed.counts[f.key] || new Map();
   det.querySelector('.flabel').textContent = T('f_' + f.key);
@@ -851,6 +1140,7 @@ function renderFacet(f) {
   const fq = fold(S.fq[f.key]);
   if (fq) entries = entries.filter(([v]) => sel.has(v) || fold(v).includes(fq) || (f.fmt && fold(f.fmt(v)).includes(fq)));
   if (f.order === 'value') entries.sort((a, b) => (a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0));
+  else if (f.key === 'journal') entries.sort(journalCmp); // impact factor, then other journals, then preprints
   else entries.sort((a, b) => (b[1] - a[1]) || collator.compare(a[0], b[0]));
   let shown = entries; let hidden = 0;
   if (f.limit && entries.length > f.limit) {
@@ -858,13 +1148,23 @@ function renderFacet(f) {
     hidden = entries.length - shown.length;
   }
   const box = det.querySelector('.fvals');
-  box.replaceChildren(...shown.map(([v, n]) => {
+  const row = ([v, n]) => {
     const on = sel.has(v);
     return h('label', { class: 'fval' + (on ? ' on' : '') + (n ? '' : ' zero') },
       h('input', { type: 'checkbox', 'data-v': v, checked: on }),
       h('span', { class: 'v' }, f.fmt ? f.fmt(v) : v),
       h('span', { class: 'n' }, fmtN(n)));
-  }));
+  };
+  if (f.key === 'journal') {
+    det.querySelector('.fnote').textContent = T('jNote');
+    const nodes = []; let grp = 0;
+    for (const e of shown) {
+      const g = journalInfo(e[0]).grp;
+      if (g !== grp) { nodes.push(h('div', { class: 'fsub' }, T(g === 1 ? 'jOther' : 'jPre'))); grp = g; }
+      nodes.push(row(e));
+    }
+    box.replaceChildren(...nodes);
+  } else box.replaceChildren(...shown.map(row));
   if (!shown.length) box.append(h('div', { class: 'fhint' }, T('fnone')));
   if (hidden > 0) box.append(h('div', { class: 'fhint' }, T('fmore')(fmtN(hidden))));
 }
@@ -872,6 +1172,8 @@ function renderActive() {
   const items = [];
   if (S.q) items.push(h('button', { class: 'achip', type: 'button', title: T('remove'), onclick: () => { qInput.value = ''; setQuery(''); } },
     h('b', null, T('search') + ':'), h('span', null, S.q), h('i', { 'aria-hidden': 'true' }, '×')));
+  if (S.win) items.push(h('button', { class: 'achip', type: 'button', title: T('remove'), onclick: () => setWin('') },
+    h('b', null, T('f_date') + ':'), h('span', null, T('win' + S.win)), h('i', { 'aria-hidden': 'true' }, '×')));
   for (const f of FACETS) {
     for (const v of S.sel[f.key]) {
       items.push(h('button', { class: 'achip', type: 'button', title: T('remove'), onclick: () => setFacet(f.key, v, false) },
@@ -880,10 +1182,10 @@ function renderActive() {
   }
   if (items.length > 1) items.push(h('button', { class: 'linkish', type: 'button', onclick: clearAll }, T('clearAll')));
   activeEl.replaceChildren(...items);
-  const nSel = FACETS.reduce((s, f) => s + S.sel[f.key].size, 0);
+  const nSel = FACETS.reduce((s, f) => s + S.sel[f.key].size, 0) + (S.win ? 1 : 0);
   put(filtersBtn, icon('filter'), T('filters'), nSel ? h('span', { class: 'badge' }, String(nSel)) : null);
 }
-function anySelected() { return FACETS.some(f => S.sel[f.key].size > 0); }
+function anySelected() { return !!S.win || FACETS.some(f => S.sel[f.key].size > 0); }
 function renderCount() {
   const n = computed.results.length;
   put(countEl, T('count')(fmtN(n), fmtN(DATA.papers.length)),
@@ -905,6 +1207,8 @@ function refresh(opts = {}) {
     const top = $('#results').getBoundingClientRect().top;
     if (top < 0) window.scrollTo(0, Math.max(0, window.scrollY + top - topEl.offsetHeight - 8));
   }
+  dirDirty = true;
+  renderDir();
 }
 function setTokens() {
   S.tokens = tokenize(S.q);
@@ -922,10 +1226,18 @@ function setFacet(key, v, on) {
   const sel = S.sel[key];
   if (!sel) return;
   if (on) sel.add(v); else sel.delete(v);
+  if (key === 'date' && on) S.win = ''; // a custom year / month replaces the quick window
+  refresh({ toTop: true });
+  writeHash(false);
+}
+function setWin(w) {
+  S.win = WINDOWS.includes(w) ? w : '';
+  S.sel.date.clear(); // a window (or "all dates") replaces any custom year / month
   refresh({ toTop: true });
   writeHash(false);
 }
 function clearAll() {
+  S.win = '';
   for (const f of FACETS) { S.sel[f.key].clear(); S.fq[f.key] = ''; }
   facetsEl.querySelectorAll('.fsearch').forEach(i => { i.value = ''; });
   S.q = ''; qInput.value = ''; setTokens();
@@ -972,8 +1284,7 @@ function renderDetail(p) {
     p.in.length ? h('div', { class: 'inst' }, icon('building'), h('span', null, p.in.join(' · '))) : null,
     p.kw.length ? kwRow(p.kw) : null,
     h('div', { class: 'd-actions' }, linkButtons(p),
-      h('button', { class: 'btn', type: 'button', onclick: () => copyText(bibtex([p]), T('bibCopied')) }, T('copyBib')),
-      relNode(p)),
+      h('button', { class: 'btn', type: 'button', onclick: () => copyText(bibtex([p]), T('bibCopied')) }, T('copyBib'))),
     h('section', { class: 'sec' }, h('h3', null, T('abstract')), absBody,
       (p.ab || absPending) ? h('div', { class: 'notice cr' }, T('abstractNote')(SOURCE_NAMES[p.src] || '')) : null),
     h('div', { class: 'aiwrap', id: 'aiwrap' }, h('div', { class: 'loading' }, T('loadingAI'))),
@@ -1037,8 +1348,6 @@ function renderAI(p, a) {
   if (rows.length) {
     out.push(sec(T('sec_facets'), h('dl', { class: 'kv' }, rows.map(([k, vals]) => [h('dt', null, T('f_' + k)), h('dd', null, vals.map(v => facetChip(k, v)))])), true));
   }
-  const fu = pickList(a.fu);
-  if (fu.length) out.push(sec(T('sec_fu'), ul(fu), true));
   const ev = a.ev || {};
   const evRows = [];
   if (ev.on) evRows.push([T('ev_on'), ev.on]);
@@ -1184,6 +1493,107 @@ window.addEventListener('scroll', () => {
 }, { passive: true });
 toTopBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
 
+/* ------------------------------------------------------------------ Browse directory (wide screens) */
+// One row per paper in the current list: first author, journal, date. A click jumps
+// to the card; while the list scrolls, the row of the topmost card is highlighted.
+const dirEl = $('#dir'); const dirList = $('#dirList'); const dirBtn = $('#dirBtn');
+const DIR_MQ = window.matchMedia('(min-width:1200px)');
+let dirOn = true;      // the visitor's choice (remembered)
+let dirDirty = true;   // the rows no longer match the list
+let dirCur = -1;       // the highlighted row
+const spyOn = new Set(); // indexes of the cards in the reading band
+let spy = null;
+function dirShown() { return dirOn && DIR_MQ.matches; }
+// The first author's family name (the row's tooltip has the title).
+function firstAuthor(p) {
+  if (!p.a.length) return '—';
+  const s = String(p.a[0]).trim();
+  return (s.includes(',') ? s.split(',')[0] : s.split(/\s+/).pop()) || s;
+}
+function topSpy() { let m = Infinity; for (const i of spyOn) if (i < m) m = i; return m === Infinity ? -1 : m; }
+function renderDir() {
+  if (!dirShown() || !DATA.ready) return;
+  dirDirty = false;
+  const res = computed.results;
+  $('#dirCount').textContent = fmtN(res.length);
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < res.length; i++) {
+    const p = res[i];
+    const gray = isGray(p.tp[0]);
+    const row = h('button', { class: 'drow' + (gray ? ' gray' : ''), type: 'button', 'data-i': i, tabindex: i ? -1 : 0, title: p.t },
+      h('span', { class: 'a' }, firstAuthor(p)), h('span', { class: 'j' }, journalInfo(p.j).ab), h('span', { class: 'd' }, p.d || '—'));
+    if (!gray) paint(row, p.tp[0]);
+    frag.append(row);
+  }
+  dirList.replaceChildren(frag);
+  if (!res.length) dirList.append(h('div', { class: 'dir-empty' }, T('noResults')));
+  dirCur = -1;
+  markDir(Math.max(0, topSpy()), true);
+}
+function markDir(i, follow) {
+  if (!dirShown() || dirDirty || i === dirCur) return;
+  const old = dirList.children[dirCur];
+  if (old) old.classList.remove('cur');
+  dirCur = i;
+  const row = dirList.children[i];
+  if (!row || !row.classList.contains('drow')) return;
+  row.classList.add('cur');
+  // follow the list, but never while the visitor is using the directory
+  if (follow && !dirEl.matches(':hover') && !dirEl.contains(document.activeElement)) keepInView(row);
+}
+function keepInView(row) {
+  const top = row.offsetTop; const bottom = top + row.offsetHeight;
+  const st = dirList.scrollTop; const vh = dirList.clientHeight;
+  if (top < st) dirList.scrollTop = Math.max(0, top - 48);
+  else if (bottom > st + vh) dirList.scrollTop = bottom - vh + 48;
+}
+function jumpTo(i, byKey) {
+  if (!(i >= 0 && i < computed.results.length)) return;
+  if (i >= S.shown) appendBatch(i + 1 - S.shown + 10); // render down to the paper first
+  const el = listEl.querySelector(`article.card[data-i="${i}"]`);
+  if (!el) return;
+  el.scrollIntoView({ block: 'start' });
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+  setTimeout(() => el.classList.remove('flash'), 1400);
+  markDir(i, false);
+  if (byKey) { const a = el.querySelector('.title a'); if (a) a.focus({ preventScroll: true }); }
+}
+function setDir(on, remember) {
+  dirOn = on;
+  if (remember) { try { localStorage.setItem(LS_DIR, on ? 'on' : 'off'); } catch (e) { /* storage may be unavailable */ } }
+  document.body.classList.toggle('dir-on', on);
+  dirBtn.setAttribute('aria-pressed', String(on));
+  dirBtn.title = T(on ? 'dirHide' : 'dirShow');
+  if (dirDirty) renderDir();
+}
+function startSpy() {
+  if (!('IntersectionObserver' in window)) return;
+  spy = new IntersectionObserver(entries => {
+    for (const en of entries) { const i = Number(en.target.dataset.i); if (en.isIntersecting) spyOn.add(i); else spyOn.delete(i); }
+    const i = topSpy();
+    if (i >= 0) markDir(i, true);
+  }, { rootMargin: `-${topEl.offsetHeight + 24}px 0px -55% 0px` }); // the band starts just below the sticky header
+}
+dirList.addEventListener('click', e => { const b = e.target.closest('.drow'); if (b) jumpTo(Number(b.dataset.i), e.detail === 0); });
+dirList.addEventListener('keydown', e => {
+  const b = e.target.closest('.drow');
+  if (!b) return;
+  const n = computed.results.length; let i = Number(b.dataset.i);
+  const step = { ArrowDown: 1, ArrowUp: -1, PageDown: 10, PageUp: -10 }[e.key];
+  if (step) i = Math.max(0, Math.min(n - 1, i + step));
+  else if (e.key === 'Home') i = 0;
+  else if (e.key === 'End') i = n - 1;
+  else return;
+  e.preventDefault();
+  const t = dirList.children[i];
+  if (!t) return;
+  b.tabIndex = -1; t.tabIndex = 0; t.focus({ preventScroll: true }); keepInView(t);
+});
+dirBtn.addEventListener('click', () => setDir(!dirOn, true));
+$('#dirClose').addEventListener('click', () => { setDir(false, true); dirBtn.focus(); });
+const onDirMQ = () => { if (dirDirty) renderDir(); };
+if (DIR_MQ.addEventListener) DIR_MQ.addEventListener('change', onDirMQ); else if (DIR_MQ.addListener) DIR_MQ.addListener(onDirMQ);
+
 /* ------------------------------------------------------------------ about dialog + footer */
 function renderAbout() {
   $('#aTitle').textContent = T('aboutTitle');
@@ -1220,6 +1630,11 @@ function applyStaticText() {
   $('#aboutBtn').textContent = T('about');
   $('#filtersTitle').textContent = T('filters');
   $('#exLabel').textContent = T('exportLabel');
+  put(dirBtn, icon('list'), T('dir'));
+  dirBtn.title = T(dirOn ? 'dirHide' : 'dirShow');
+  $('#dirTitle').textContent = T('dir'); $('#dirTitle').title = T('dirTip');
+  $('#dirA').textContent = T('dirA'); $('#dirJ').textContent = T('dirJ'); $('#dirD').textContent = T('dirD');
+  $('#dirClose').setAttribute('aria-label', T('dirHide')); $('#dirClose').title = T('dirHide');
   toTopBtn.title = T('toTop'); toTopBtn.setAttribute('aria-label', T('toTop'));
   if (!DATA.ready) put(filtersBtn, icon('filter'), T('filters')); // label before data arrives; renderActive adds the badge
   $('#clearAllMobile').textContent = T('clearAll');
@@ -1242,14 +1657,19 @@ function setLang(l) {
 $('#langBtn').addEventListener('click', () => setLang(isZh() ? 'en' : 'zh'));
 
 /* ------------------------------------------------------------------ URL state */
-function filterSig() { return JSON.stringify([S.q, S.sort, FACETS.map(f => [...S.sel[f.key]].sort())]); }
+function filterSig() { return JSON.stringify([S.q, S.sort, S.win, FACETS.map(f => [...S.sel[f.key]].sort())]); }
 function readHash() {
   const raw = location.hash.replace(/^#/, '');
   lastHash = raw;
   const sp = new URLSearchParams(raw);
   S.q = (sp.get('q') || '').slice(0, 300);
-  S.sort = SORTS.includes(sp.get('sort')) ? sp.get('sort') : 'new';
+  S.sort = SORTS.includes(sp.get('sort')) ? sp.get('sort') : 'new'; // an old sort=rel link falls back to newest
   for (const f of FACETS) S.sel[f.key] = new Set(sp.getAll(f.key).filter(Boolean).slice(0, 50));
+  // Links from before the date filter used year= and month=; they become custom date choices.
+  for (const v of [...sp.getAll('year'), ...sp.getAll('month')]) S.sel.date.add(v);
+  S.sel.date = new Set([...S.sel.date].filter(v => /^\d{4}(-\d{2})?$/.test(v)));
+  S.win = WINDOWS.includes(sp.get('win')) ? sp.get('win') : '';
+  if (S.win) S.sel.date.clear();
   const l = sp.get('lang'); if (l === 'en' || l === 'zh') S.lang = l;
   const p = sp.get('p'); S.p = p && /^[0-9a-f]{16}$/.test(p) ? p : null;
   setTokens();
@@ -1258,6 +1678,7 @@ function writeHash(push) {
   const sp = new URLSearchParams();
   if (S.q) sp.set('q', S.q);
   if (S.sort !== 'new') sp.set('sort', S.sort);
+  if (S.win) sp.set('win', S.win);
   for (const f of FACETS) for (const v of S.sel[f.key]) sp.append(f.key, v);
   if (isZh()) sp.set('lang', 'zh');
   if (S.p) sp.set('p', S.p);
@@ -1287,6 +1708,8 @@ qInput.addEventListener('input', () => { clearTimeout(qTimer); qTimer = setTimeo
 qInput.addEventListener('keydown', e => { if (e.key === 'Enter') { clearTimeout(qTimer); setQuery(qInput.value); qInput.blur(); } });
 sortSel.addEventListener('change', () => { S.sort = SORTS.includes(sortSel.value) ? sortSel.value : 'new'; refresh({ toTop: true }); writeHash(false); });
 facetsEl.addEventListener('change', e => {
+  const r = e.target.closest('input[type=radio][name=win]');
+  if (r) { setWin(r.value); return; }
   const cb = e.target.closest('input[type=checkbox][data-v]');
   if (!cb) return;
   const det = cb.closest('.facet');
@@ -1332,10 +1755,13 @@ window.addEventListener('resize', measureTop);
   let stored = null;
   try { stored = localStorage.getItem(LS_LANG); } catch (e) { stored = null; }
   S.lang = stored === 'zh' || stored === 'en' ? stored : ((navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en');
+  try { dirOn = localStorage.getItem(LS_DIR) !== 'off'; } catch (e) { dirOn = true; }
+  setDir(dirOn, false); // before the first render, so the layout does not jump
   readHash();
   qInput.value = S.q;
   applyStaticText();
   measureTop();
+  startSpy();
   listEl.replaceChildren(h('div', { class: 'loading' }, T('loading')));
   fetch('data/papers.json')
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })

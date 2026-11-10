@@ -23,7 +23,14 @@ Checks:
     than 19 px (17 px on phones), journal names in a light weight (<= 300)
     that stays readable in light and dark mode, a tag icon before every
     keyword row, and one person icon per author on the cards and in the
-    dialog, without making any line taller.
+    dialog, without making any line taller;
+  * the owner's 2026-11-10 choices hold: no relevance score or relevance
+    sort, no follow-up section; one date filter (last 7 / 30 days counted
+    back from the snapshot date, all, or custom years / months; old year= and
+    month= links still work); the journal filter ordered by impact factor
+    with preprints and open platforms last; fixed topic colours; and on wide
+    screens a Browse directory in its own column whose rows jump to their
+    paper, follow the scrolling, and can be hidden (remembered).
 
 Usage:
     python3 tools/check_site.py [--shots DIR] [--base https://…/seismohub-lite]
@@ -35,6 +42,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import datetime as dt
 import functools
 import http.server
 import json
@@ -42,6 +50,7 @@ import re
 import sys
 import threading
 import time
+import unicodedata
 from pathlib import Path
 from urllib.parse import quote, urlencode, urlparse
 
@@ -102,6 +111,38 @@ DIALOG_LOOK_JS = """(() => {
     b ? b.querySelectorAll('svg').length : 0, !!(b && b.querySelector('button.linkish')),
     row ? (row.firstElementChild.tagName.toLowerCase() === 'svg' && row.querySelectorAll('svg').length === 1 && !!row.querySelector(':scope > .chips .chip.k')) : null,
     jn ? parseInt(getComputedStyle(jn).fontWeight, 10) : 999];
+})()"""
+
+def page_tables():
+    """The journal impact factors, the preprint pattern and the fixed topic
+    colours, read from the page itself so the checks follow its tables."""
+    html = (DOCS / "index.html").read_text(encoding="utf-8")
+    jif = {norm_journal(name): float(v) for name, _ab, v in re.findall(r"'([^'\n]+)': \['([^'\n]*)', ([\d.]+)\]", html)}
+    misc = re.compile(re.search(r"const MISC_VENUE = /(.+?)/i;", html).group(1), re.I)
+    hues = {name: (float(h), float(k)) for name, h, k in re.findall(r"'([^'\n]+)': \[(\d+), ([\d.]+)\]", html)}
+    return jif, misc, hues
+
+
+def norm_journal(s: str) -> str:
+    """Python twin of the page's normJ()."""
+    s = unicodedata.normalize("NFKD", str(s or ""))
+    s = "".join(c for c in s if not unicodedata.combining(c)).lower()
+    s = re.sub(r"[\s\-_.,:;/\\()\[\]{}'\"!?–—]+", " ", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+# The journal filter in page order: [value, count] per row, and the headings.
+JOURNAL_ROWS_JS = """(() => {
+  const box = document.querySelector('.facet[data-key="journal"] .fvals');
+  return [[...box.querySelectorAll('.fval')].map(l => [l.querySelector('input').getAttribute('data-v'), l.querySelector('.n').textContent]),
+          [...box.querySelectorAll('.fsub')].map(s => s.textContent)];
+})()"""
+
+# The directory: [display, rows, layout columns, highlighted row].
+DIR_STATE_JS = """(() => {
+  const cur = document.querySelector('#dirList .drow.cur');
+  return [getComputedStyle(document.querySelector('#dir')).display, document.querySelectorAll('#dirList .drow').length,
+    getComputedStyle(document.querySelector('.layout')).gridTemplateColumns.split(' ').length, cur ? cur.dataset.i : null];
 })()"""
 
 # Horizontal overflow: the page, every rendered card, and the open dialog.
@@ -197,6 +238,37 @@ def main() -> int:
     by_id = {p["id"]: p for p in index["papers"]}
     rare = abstract_only_word()
     squash = lambda s: " ".join(str(s).split())  # noqa: E731
+    jif_table, misc_re, topic_hues = page_tables()
+    # what the date filter should count: full dates, in days before the snapshot date
+    generated = str(index.get("generated") or "")
+    full_dates = [dt.date.fromisoformat(p["d"]) for p in index["papers"] if len(p["d"]) == 10]
+    ref_day = dt.date.fromisoformat(generated) if re.fullmatch(r"\d{4}-\d{2}-\d{2}", generated) else max(full_dates)
+    n7 = sum(1 for d in full_dates if (ref_day - d).days < 7)
+    n30 = sum(1 for d in full_dates if (ref_day - d).days < 30)
+    months = collections.Counter(p["d"][:7] for p in index["papers"] if len(p["d"]) >= 7)
+    journal_counts = collections.Counter(p["j"] or "Others" for p in index["papers"])
+
+    def journal_key(name: str):
+        """(group, impact factor) as the page orders the journal filter."""
+        if misc_re.search(name):
+            return (2, 0.0)
+        if name == "Others":
+            return (1, -1.0)
+        v = jif_table.get(norm_journal(name), 0.0)
+        return (0, v) if v > 0 else (1, 0.0)
+
+    def check_journal_order(page, where: str, expect_all: bool):
+        rows, heads = page.evaluate(JOURNAL_ROWS_JS)
+        keys = [journal_key(v) for v, _ in rows]
+        counts = [int(n.replace(",", "")) for _, n in rows]
+        pairs = list(zip(keys, counts))
+        ordered = all(k1[0] < k2[0] or (k1[0] == k2[0] and (k1[1] > k2[1] or (k1[1] == k2[1] and c1 >= c2)))
+                      for (k1, c1), (k2, c2) in zip(pairs, pairs[1:]))
+        groups = len({k[0] for k in keys if k[0] != 0})
+        complete = len(rows) == len(journal_counts) if expect_all else bool(rows)
+        check(complete and ordered and len(heads) == groups,
+              f"{where}: journal filter is ordered by impact factor, preprints and open platforms last "
+              f"({len(rows)} journals, {len(heads)} headings)")
 
     def check_cards(page, where: str, min_title: float):
         """The owner's four style points, on every card rendered so far."""
@@ -250,7 +322,7 @@ def main() -> int:
             check(f"{total:,} papers" in count_text(page), f"count shows {total:,} papers ({count_text(page)!r})")
             check(page.locator("article.card").count() == 40, "first batch renders 40 cards")
             check(page.locator('.facet[data-key="topic"] .fval').count() > 5, "topic facet lists values")
-            check(page.locator('.facet[data-key="journal"] .fval').count() == 25, "journal facet shows top 25")
+            check_journal_order(page, "desktop", True)
             check(not stray.search(page.locator("body").inner_text()), "list page shows no stray null/undefined")
             page.locator("article.card details.absd summary").first.click()
             abs_text = page.locator("article.card details.absd .abs").first.inner_text()
@@ -306,13 +378,82 @@ def main() -> int:
             page.wait_for_timeout(300)
             check(f"{total:,} papers" == count_text(page).strip(), "clear all restores the full list")
 
-            # sort by relevance
-            page.select_option("#sort", "rel")
+            # no relevance score anywhere, and no relevance sort (an old sort=rel link falls back to newest)
+            sorts = page.evaluate("[...document.querySelectorAll('#sort option')].map(o => o.value)")
+            check(page.locator(".rel").count() == 0 and "rel" not in sorts, f"no relevance score or relevance sort ({sorts})")
+
+            # date filter: last 7 / 30 days counted back from the snapshot date, all, or custom months
+            wins = page.evaluate("[...document.querySelectorAll('.facet[data-key=\"date\"] .fwin .fval .n')].map(n => n.textContent)")
+            check(wins == [f"{n7:,}", f"{n30:,}", f"{total:,}"], f"date filter offers last 7 days, last 30 days and all ({wins})")
+            check(page.locator('.facet[data-key="year"], .facet[data-key="month"]').count() == 0, "year and month are merged into the date filter")
+            page.locator('.facet[data-key="date"] input[name=win][value="7"]').check()
             page.wait_for_timeout(300)
-            top_rel = page.locator("article.card .rel b").first.inner_text()
-            check(top_rel.strip() == "9", f"relevance sort puts a 9 first (got {top_rel})")
-            page.select_option("#sort", "new")
+            ct = count_text(page)
+            check(ct.startswith(f"{n7:,} of ") and "win=7" in page.url and page.locator("#active .achip").count() == 1,
+                  f"'last 7 days' keeps the papers of the last week ({ct!r})")
+            newest = max(months)
+            page.locator('.facet[data-key="date"] .dcustom summary').click()
+            page.locator(f'.facet[data-key="date"] .dcustom input[data-v="{newest}"]').check()
             page.wait_for_timeout(300)
+            ct = count_text(page)
+            check(ct.startswith(f"{months[newest]:,} of ") and f"date={newest}" in page.url and "win=" not in page.url
+                  and not page.locator('.facet[data-key="date"] input[name=win][value="7"]').is_checked(),
+                  f"a custom month replaces the window ({ct!r})")
+            page.locator('.facet[data-key="date"] input[name=win][value=""]').check()
+            page.wait_for_timeout(300)
+            check(count_text(page).strip() == f"{total:,} papers", "'all dates' restores the full list")
+            # links from before the merge (month=, year=) and from before relevance was dropped (sort=rel)
+            page.goto(base + f"/#month={newest}&sort=rel")
+            page.wait_for_timeout(500)
+            ct = count_text(page)
+            check(ct.startswith(f"{months[newest]:,} of ") and page.locator("#sort").input_value() == "new",
+                  f"old month= and sort=rel links still open ({ct!r})")
+            page.goto(base + "/")
+            page.wait_for_selector("article.card", timeout=20000)
+
+            # fixed topic colours: every topic chip has its own topic's hue, not its card's
+            chips = page.evaluate("""[...document.querySelectorAll('.chip.t:not(.gray)')].map(c => [c.getAttribute('data-value'),
+              getComputedStyle(c).getPropertyValue('--h').trim(), getComputedStyle(c).getPropertyValue('--k').trim()])""")
+            wrong = [c for c in chips if c[0] in topic_hues and (float(c[1] or -1), float(c[2] or -1)) != topic_hues[c[0]]]
+            check(bool(chips) and not wrong, f"topic colours are fixed per topic ({len(chips)} chips, {len(wrong)} wrong)")
+
+            # Browse directory (wide screens): its own column, one row per paper
+            page.wait_for_selector("#dirList .drow", timeout=20000)
+            d = page.evaluate(DIR_STATE_JS)
+            check(d[0] == "flex" and d[1] == total and d[2] == 3, f"Browse directory has its own column with one row per paper ({d})")
+            page.locator('#dirList .drow[data-i="120"]').click()
+            page.wait_for_timeout(400)
+            jump = page.evaluate("""(() => { const c = document.querySelector('article.card[data-i="120"]');
+              return c ? Math.round(c.getBoundingClientRect().top - parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--top-h'))) : null; })()""")
+            d = page.evaluate(DIR_STATE_JS)
+            check(jump is not None and 0 <= jump < 40 and d[3] == "120", f"a directory row jumps to its paper, just below the header ({jump}px, row {d[3]})")
+            over = page.evaluate("""(() => { const t = document.querySelector('#toTop'); const a = t.getBoundingClientRect(); const b = document.querySelector('#dir').getBoundingClientRect();
+              return [t.classList.contains('show'), a.right > b.left && a.left < b.right && a.bottom > b.top && a.top < b.bottom]; })()""")
+            check(over == [True, False], f"the back-to-top button stays off the directory ({over})")
+            page.evaluate("document.querySelector('article.card[data-i=\"5\"]').scrollIntoView({block: 'start'})")
+            page.wait_for_timeout(500)
+            d = page.evaluate(DIR_STATE_JS)
+            check(d[3] == "5", f"the highlighted row follows the scrolling (row {d[3]})")
+            page.locator("#dirBtn").click()
+            page.wait_for_timeout(200)
+            d = page.evaluate(DIR_STATE_JS)
+            check(d[0] == "none" and d[2] == 2 and page.evaluate("localStorage.getItem('seismohub-lite:dir')") == "off",
+                  f"the directory can be hidden, and the choice is remembered ({d})")
+            page.reload()
+            page.wait_for_selector("article.card", timeout=20000)
+            check(page.evaluate(DIR_STATE_JS)[0] == "none", "it stays hidden after a reload")
+            page.locator("#dirBtn").click()
+            page.wait_for_timeout(300)
+            d = page.evaluate(DIR_STATE_JS)
+            check(d[0] == "flex" and d[1] == total, f"the Browse button shows it again ({d})")
+            page.set_viewport_size({"width": 1024, "height": 800})
+            page.wait_for_timeout(200)
+            narrow = page.evaluate("[getComputedStyle(document.querySelector('#dir')).display, getComputedStyle(document.querySelector('#dirBtn')).display]")
+            check(narrow == ["none", "none"], f"below 1200px the directory and its button are hidden ({narrow})")
+            page.set_viewport_size({"width": 1280, "height": 900})
+            page.goto(base + "/")
+            page.wait_for_selector("article.card", timeout=20000)
+            page.mouse.move(640, 600)  # over the cards, so the wheel scrolls the page and not a sidebar
 
             # infinite scroll + back to top
             page.mouse.wheel(0, 20000)
@@ -335,6 +476,8 @@ def main() -> int:
             check(n_ai >= 4, f"dialog shows AI sections ({n_ai})")
             check(page.locator("#detail .sec").first.locator("h3").inner_text().strip().lower() == "abstract", "abstract section first")
             check(page.locator("#detail .notice.cr").count() == 1, "abstract copyright note shown")
+            check(page.locator("#detail .rel").count() == 0 and page.locator("#detail", has_text="follow-up ideas").count() == 0,
+                  "the dialog has no relevance score and no follow-up section")
             check(not stray.search(page.locator("#detail").inner_text()), "dialog shows no stray null/undefined")
             # Safari/WebKit collapsed the dialog to a 105 px strip while its body had
             # "flex:1" (basis 0%). Chrome never showed it, so check the cause too.
@@ -441,6 +584,8 @@ def main() -> int:
             overflow = page.evaluate("document.documentElement.scrollWidth - window.innerWidth")
             check(overflow <= 0, f"no horizontal overflow at 390px (overflow {overflow}px)")
             check_cards(page, "phone 390px", 17)
+            check(page.evaluate(DIR_STATE_JS)[0] == "none", "phones get no Browse directory")
+            check_journal_order(page, "phone", True)
             btn = page.locator("#filtersBtn").inner_text()
             check("null" not in btn and "undefined" not in btn, f"filter button label is clean ({btn.strip()!r})")
             if shots:

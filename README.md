@@ -11,8 +11,15 @@ structured notes, topic labels, keywords and facets.
 
 What you can do on the page:
 
-- Search, sort, and filter by topic, journal, year, month, keyword,
-  institution, method, data type, target and paper type.
+- Search, sort, and filter by date, topic, journal, keyword, institution,
+  method, data type, target and paper type.
+  - The date filter offers the last 7 or 30 days, counted back from the
+    snapshot date, or any months you pick.
+  - The journal list puts the highest impact factor first. Preprint
+    servers and open platforms come last.
+- On wide screens (1200 px and up), use the Browse directory on the right.
+  It lists the current papers by first author, journal and date. Click a row
+  to jump to that paper. The Browse button hides or shows it.
 - Step through papers with ‹ / › or the arrow keys.
 - Copy a BibTeX entry, or export the current list as BibTeX or RIS.
 - Switch between English and Chinese.
@@ -146,8 +153,9 @@ the original article.
 ## Privacy
 
 The site is plain static files. Search and filtering run entirely in the
-browser. Only the visitor's language choice is saved, in the browser's local
-storage. As the host, GitHub may keep standard server logs.
+browser. Only two settings are saved, in the browser's local storage: the
+visitor's language and whether the Browse directory is shown. As the host,
+GitHub may keep standard server logs.
 
 ## 维护说明（中文）
 
