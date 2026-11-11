@@ -115,6 +115,12 @@ select{height:44px;border:1px solid var(--line-2);border-radius:12px;background:
 .card.flash{outline:2px solid var(--accent);outline-offset:2px}
 .card.gray{border-left-color:var(--line-2)}
 .card-head{display:flex;align-items:flex-start;gap:12px}
+/* a card's top right: the abstract & AI analysis (sparkles + "AI") and the paper's DOI or link */
+.cacts{display:flex;align-items:center;gap:6px;flex:none;margin:-6px -4px 0 0}
+.cacts .btn{height:28px;padding:0 10px;font-size:12.5px;gap:5px}
+.cacts .btn svg{width:13px;height:13px}
+.btn.ai{padding:0 11px 0 9px}
+.btn.ai i{font-weight:800;letter-spacing:.04em;padding-right:1px}
 .meta{font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--accent);flex:1;min-width:0;padding-top:2px;overflow-wrap:anywhere}
 .meta .date,.kicker .date{color:var(--muted);font-weight:400;letter-spacing:.03em}
 .jn{font-weight:300;letter-spacing:.1em}
@@ -214,15 +220,25 @@ dialog::backdrop{background:rgba(8,12,20,.55)}
 .dir-head strong{font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .dir-head .n{margin-right:auto;font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}
 .dir-head .icon-btn{width:28px;height:28px;font-size:17px}
-.dir-cols,.drow{display:grid;grid-template-columns:minmax(0,1fr) 70px 76px;gap:8px;align-items:center}
-.dir-cols{padding:6px 12px 6px 14px;border-bottom:1px solid var(--line);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
-.dir-cols span:last-child,.drow .d{text-align:right}
+.dir-cols,.drow{display:grid;grid-template-columns:minmax(0,1fr) 76px 70px;gap:6px;align-items:center}
+.dir-cols{padding:2px 12px 2px 14px;border-bottom:1px solid var(--line);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+/* column headings: each one sorts the directory (A–Z, Z–A, back to the list's order) */
+.dsort{display:inline-flex;align-items:center;gap:4px;min-width:0;max-width:100%;justify-self:start;margin:0;padding:5px 0;border:0;background:none;font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;cursor:pointer}
+.dsort span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dsort svg{width:11px;height:11px;flex:none;opacity:.55}
+.dsort:hover{color:var(--muted)}
+.dsort:hover svg{opacity:1}
+.dsort[aria-pressed="true"]{color:var(--accent)}
+.dsort[aria-pressed="true"] svg{opacity:1}
+.dsort:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-radius:4px}
+.dsort[data-k="d"]{justify-self:end}
+.drow .d{text-align:right}
 .dir-list{position:relative;flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;padding:4px 0 8px}
 .drow{width:100%;margin:0;border:0;border-left:3px solid hsl(var(--h,215) calc(var(--edge-s) * var(--k,1)) var(--edge-l));background:none;padding:4px 12px 4px 11px;font-size:12.5px;line-height:1.35;text-align:left;color:var(--text);cursor:pointer}
 .drow.gray{border-left-color:var(--line-2)}
 .drow span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .drow .j{color:var(--muted)}
-.drow .d{color:var(--faint);font-size:11.5px;font-variant-numeric:tabular-nums}
+.drow .d{color:var(--faint);font-size:11px;font-variant-numeric:tabular-nums}
 .drow:hover{background:var(--surface-2)}
 .drow.cur{background:var(--accent-soft)}
 .drow.cur .a{font-weight:700}
@@ -232,13 +248,16 @@ dialog::backdrop{background:rgba(8,12,20,.55)}
 .dir-btn[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
 @media (min-width:901px){.facet[data-key="journal"] .fvals{max-height:min(380px,48vh);overflow:auto}}
 @media (min-width:1200px){
+  :root{--dir-w:290px}
   .dir-btn{display:inline-flex}
-  body.dir-on .layout{max-width:1580px;grid-template-columns:270px minmax(0,1fr) 290px;gap:20px}
+  body.dir-on .layout{max-width:1580px;grid-template-columns:270px minmax(0,1fr) var(--dir-w);gap:20px}
   body.dir-on .top-inner,body.dir-on .foot-inner{max-width:1580px}
   body.dir-on .dir{display:flex}
   /* keep "back to top" off the directory: at the right edge of the paper column */
-  body.dir-on .totop{right:calc(max(0px, (100vw - 1580px) / 2) + 16px + 290px + 20px + 12px)}
+  body.dir-on .totop{right:calc(max(0px, (100vw - 1580px) / 2) + 16px + var(--dir-w) + 20px + 12px)}
 }
+/* wider screens: room for most first authors' full names */
+@media (min-width:1440px){:root{--dir-w:340px}}
 .btn:disabled,.icon-btn:disabled{opacity:.4;cursor:default;pointer-events:none}
 .hint{font-weight:500;color:var(--faint);font-size:12.5px}
 .dnav{display:flex;align-items:center;gap:6px;flex:none}
@@ -321,7 +340,7 @@ dialog::backdrop{background:rgba(8,12,20,.55)}
   </main>
   <aside class="dir" id="dir" aria-labelledby="dirTitle">
     <div class="dir-head"><strong id="dirTitle">Browse</strong><span class="n" id="dirCount"></span><button class="icon-btn" id="dirClose" type="button" aria-label="Hide the directory">&times;</button></div>
-    <div class="dir-cols" aria-hidden="true"><span id="dirA">Authors</span><span id="dirJ">Journal</span><span id="dirD">Date</span></div>
+    <div class="dir-cols" id="dirCols"><button class="dsort" id="dirA" type="button" data-k="a" aria-pressed="false"></button><button class="dsort" id="dirJ" type="button" data-k="j" aria-pressed="false"></button><button class="dsort" id="dirD" type="button" data-k="d" aria-pressed="false"></button></div>
     <div class="dir-list" id="dirList"></div>
   </aside>
 </div>
@@ -365,7 +384,7 @@ const ISSUES_URL = REPO_URL + '/issues';
 const BATCH = 40;
 const LS_LANG = 'seismohub-lite:lang';
 const LS_DIR = 'seismohub-lite:dir';
-const SORTS = ['new', 'old', 'title'];
+const SORTS = ['new', 'old', 'if', 'title']; // while searching, 'match' (best match) comes first and is the default
 const WINDOWS = ['7', '30']; // quick date windows, in days back from the snapshot date
 const GRAY_TOPICS = new Set(['Off-topic / not seismology', 'Unable to categorize', 'Others']);
 const SOURCE_NAMES = { crossref: 'Crossref', openalex: 'OpenAlex', arxiv: 'arXiv', eth_rc: 'ETH Research Collection', rss: 'publisher RSS feed' };
@@ -583,7 +602,9 @@ const ZH_TERMS = {
 const I18N = {
   en: {
     searchPh: 'Search title, authors, abstract, journal, keywords, DOI…',
-    sort_new: 'Newest', sort_old: 'Oldest', sort_title: 'Title A–Z', sortLabel: 'Sort',
+    sort_new: 'Newest', sort_old: 'Oldest', sort_if: 'Journal IF', sort_title: 'Title A–Z', sort_match: 'Best match', sortLabel: 'Sort',
+    sortTip_if: 'Journal impact factor, high to low; preprints and open platforms last',
+    sortTip_match: 'Search terms in the title first, then in keywords or authors, then only in the abstract',
     filters: 'Filters', clearAll: 'Clear all', about: 'About', langBtn: '中文', search: 'Search',
     stats: (n, d) => `${n} papers · snapshot ${d}`,
     count: (n, total) => (n === total ? `${total} papers` : `${n} of ${total} papers`),
@@ -597,9 +618,13 @@ const I18N = {
     jNote: 'Highest impact factor first; preprints and open platforms last.',
     jOther: 'Other journals', jPre: 'Preprints & open platforms',
     dir: 'Browse', dirShow: 'Show the Browse directory', dirHide: 'Hide the Browse directory',
-    dirA: 'Authors', dirJ: 'Journal', dirD: 'Date', dirTip: 'Click a row to jump to that paper',
+    dirA: 'First author', dirJ: 'Journal', dirD: 'Date', dirTip: 'Click a row to jump to that paper',
+    dsAsc: c => `Sort the directory by ${c}, A to Z`, dsDesc: c => `Sort the directory by ${c}, Z to A`,
+    dsAscD: 'Sort the directory by date, oldest first', dsDescD: 'Sort the directory by date, newest first',
+    dsOff: 'Back to the order of the list',
     aiTip: 'Generated offline by AI — may contain errors',
     openDetail: 'Abstract & AI analysis', doi: 'DOI', link: 'Link',
+    titleTipDoi: 'Open the paper through its DOI, in a new tab', titleTipLink: 'Open the paper, in a new tab',
     abstract: 'Abstract', noAbstract: 'No abstract is available for this paper.', abstractWithheld: 'The abstract is not shown for this paper.',
     abstractNote: src => `Abstract © the authors and/or publisher, reproduced from public metadata${src ? ` (via ${src})` : ''} for non-commercial scholarly reference. Please read and cite the original article.`,
     moreAuthors: n => `+${n} more`, allAuthors: n => `Show all ${n} authors`,
@@ -639,7 +664,9 @@ const I18N = {
   },
   zh: {
     searchPh: '搜索标题、作者、摘要、期刊、关键词、DOI…',
-    sort_new: '最新', sort_old: '最早', sort_title: '标题 A–Z', sortLabel: '排序',
+    sort_new: '最新', sort_old: '最早', sort_if: '影响因子', sort_title: '标题 A–Z', sort_match: '最匹配', sortLabel: '排序',
+    sortTip_if: '期刊影响因子从高到低；预印本与开放平台排在最后',
+    sortTip_match: '搜索词在标题里的排最前，其次是关键词或作者，只在摘要里的排最后',
     filters: '筛选', clearAll: '全部清除', about: '关于', langBtn: 'EN', search: '搜索',
     stats: (n, d) => `${n} 篇 · 快照日期 ${d}`,
     count: (n, total) => (n === total ? `共 ${total} 篇` : `${n} / ${total} 篇`),
@@ -653,9 +680,13 @@ const I18N = {
     jNote: '按影响因子从高到低排列；预印本与开放平台排在最后。',
     jOther: '其他期刊', jPre: '预印本与开放平台',
     dir: '目录', dirShow: '显示目录', dirHide: '隐藏目录',
-    dirA: '作者', dirJ: '期刊', dirD: '日期', dirTip: '点一行，跳到那篇文章',
+    dirA: '第一作者', dirJ: '期刊', dirD: '日期', dirTip: '点一行，跳到那篇文章',
+    dsAsc: c => `目录按${c}首字母 A→Z 排列`, dsDesc: c => `目录按${c}首字母 Z→A 排列`,
+    dsAscD: '目录按日期从早到晚排列', dsDescD: '目录按日期从晚到早排列',
+    dsOff: '恢复为列表的顺序',
     aiTip: '由 AI 离线生成，可能有误',
     openDetail: '摘要与 AI 分析', doi: 'DOI', link: '原文链接',
+    titleTipDoi: '在新标签页通过 DOI 打开原文', titleTipLink: '在新标签页打开原文',
     abstract: '原文摘要', noAbstract: '这篇文章暂无摘要。', abstractWithheld: '这篇文章的摘要不予显示。',
     abstractNote: src => `摘要版权归作者和/或出版社所有，取自公开元数据${src ? `（${src}）` : ''}，仅供非商业的学术参考。请阅读并引用原文。`,
     moreAuthors: n => `等 ${n} 人`, allAuthors: n => `显示全部 ${n} 位作者`,
@@ -699,7 +730,7 @@ const I18N = {
 // win: '' or one of WINDOWS. It and a custom date selection (S.sel.date) exclude each other.
 const S = { lang: 'en', q: '', sort: 'new', win: '', sel: {}, fq: {}, p: null, pushed: false, shown: 0, tokens: [], hlRe: null, hlTest: null };
 for (const f of FACETS) { S.sel[f.key] = new Set(); S.fq[f.key] = ''; }
-const DATA = { papers: [], byId: new Map(), generated: '', ready: false, absReady: false, absFailed: false };
+const DATA = { papers: [], byId: new Map(), jRank: new Map(), generated: '', ready: false, absReady: false, absFailed: false };
 const KW_LABEL = new Map(); // lower-case keyword -> its most common original spelling
 let computed = { results: [], counts: {}, win: { all: 0, 7: 0, 30: 0 } };
 let lastHash = null;
@@ -753,6 +784,20 @@ function journalCmp(a, b) {
   const x = journalInfo(a[0]); const y = journalInfo(b[0]);
   return (x.grp - y.grp) || (y.jif - x.jif) || (b[1] - a[1]) || collator.compare(a[0], b[0]);
 }
+// Best match while searching: where each search term occurs. Title > keywords or authors >
+// journal or DOI > abstract only; a whole word in the title counts a little more than part of one.
+function matchScore(p, toks, words) {
+  if (p._mt == null) { p._mt = fold(p.t); p._mk = fold(p.a.join(' ') + '\n' + p.kw.join(' ')); p._mj = fold(p.j + '\n' + p.doi); }
+  let s = 0;
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i];
+    if (p._mt.includes(t)) s += words[i].test(p._mt) ? 10 : 8;
+    else if (p._mk.includes(t)) s += 4;
+    else if (p._mj.includes(t)) s += 2;
+    else s += 1; // the paper matched, so the term is in its abstract
+  }
+  return s;
+}
 
 function add(el, kids) {
   for (const k of kids) {
@@ -782,6 +827,9 @@ const ICONS = {
   spark: 'M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2-2.2-.8 2.2-.8z',
   filter: 'M4 5h16l-6 8v5l-4 2v-7z',
   list: 'M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01',
+  sort: 'M8 9.5l4-4 4 4M8 14.5l4 4 4-4',
+  up: 'M12 19V5M6 11l6-6 6 6',
+  down: 'M12 5v14M6 13l6 6 6-6',
   tag: 'M3 4v7.6a1.5 1.5 0 0 0 .44 1.06l7.9 7.9a2 2 0 0 0 2.83 0l6.4-6.4a2 2 0 0 0 0-2.83l-7.9-7.9A1.5 1.5 0 0 0 11.6 3H4a1 1 0 0 0-1 1zM7.5 7.5h.01',
 };
 // Filled glyphs (drawn with fill, not stroke).
@@ -897,6 +945,10 @@ function init(doc) {
   const ref = dayOf(DATA.generated) != null ? dayOf(DATA.generated) : newest;
   for (const p of DATA.papers) p._age = p._day != null && ref != null ? ref - p._day : null;
   for (const [key, forms] of kwForms) KW_LABEL.set(key, [...forms.entries()].sort((a, b) => b[1] - a[1])[0][0]);
+  // The impact-factor sort keeps each journal together, in the journal filter's order (counted over all papers).
+  const perJournal = new Map();
+  for (const p of DATA.papers) perJournal.set(p.j, (perJournal.get(p.j) || 0) + 1);
+  DATA.jRank = new Map([...perJournal.entries()].sort(journalCmp).map(([j], i) => [j, i]));
   DATA.ready = true;
 }
 
@@ -963,7 +1015,12 @@ function compute() {
   const byDate = (a, b) => (a._dk < b._dk ? 1 : a._dk > b._dk ? -1 : (a.id < b.id ? -1 : 1));
   if (S.sort === 'old') results.sort((a, b) => byDate(b, a));
   else if (S.sort === 'title') results.sort((a, b) => collator.compare(a.t, b.t) || byDate(a, b));
-  else results.sort(byDate);
+  else if (S.sort === 'if') results.sort((a, b) => (DATA.jRank.get(a.j) - DATA.jRank.get(b.j)) || byDate(a, b));
+  else if (S.sort === 'match' && toks.length) {
+    const words = toks.map(t => new RegExp('(?:^|[^\\p{L}\\p{N}])' + escRe(t) + '(?:$|[^\\p{L}\\p{N}])', 'u'));
+    for (const p of results) p._ms = matchScore(p, toks, words);
+    results.sort((a, b) => (b._ms - a._ms) || byDate(a, b));
+  } else results.sort(byDate);
   return { results, counts, win: wc };
 }
 
@@ -1011,6 +1068,8 @@ function kwRow(list) {
 function journalKicker(p) {
   return [h('span', { class: 'jn' }, p.j), p.d ? h('span', { class: 'date' }, ' · ' + fmtDate(p.d)) : null];
 }
+// Where the paper itself is: its DOI, else its own link ('' when it has neither).
+function paperHref(p) { return p.doi ? doiUrl(p.doi) : p.url; }
 function card(p) {
   const gray = isGray(p.tp[0]);
   const el = h('article', { class: 'card' + (gray ? ' gray' : '') });
@@ -1019,10 +1078,20 @@ function card(p) {
   let absOpen = false;
   if (p.ab && S.hlTest) { S.hlTest.lastIndex = 0; absOpen = S.hlTest.test(p.ab); }
   const absPending = !p.ab && !DATA.absReady && hasAbs(p);
+  const href = paperHref(p);
+  const ext = { href, target: '_blank', rel: 'noopener noreferrer' };
   return add(el, [
-    h('div', { class: 'card-head' }, h('div', { class: 'meta' }, journalKicker(p))),
+    // top right: the abstract and AI analysis (sparkles + "AI"), and the paper's DOI or link
+    h('div', { class: 'card-head' }, h('div', { class: 'meta' }, journalKicker(p)),
+      h('div', { class: 'cacts' },
+        h('button', { class: 'btn primary ai', type: 'button', 'data-open': p.id, title: T('openDetail'), 'aria-label': T('openDetail') },
+          icon('spark'), h('i', null, 'AI')),
+        href ? h('a', { class: 'btn', ...ext }, icon('ext'), p.doi ? T('doi') : /arxiv\.org/i.test(href) ? 'arXiv' : T('link')) : null)),
     h('div', { class: 'chips' }, p.tp.map(topicChip)),
-    h('h2', { class: 'title' }, h('a', { href: '#p=' + p.id, 'data-open': p.id }, hl(p.t))),
+    // the title opens the paper itself in a new tab (a paper with no DOI or link opens its analysis)
+    h('h2', { class: 'title' }, href
+      ? h('a', { ...ext, title: T(p.doi ? 'titleTipDoi' : 'titleTipLink') }, hl(p.t))
+      : h('a', { href: '#p=' + p.id, 'data-open': p.id }, hl(p.t))),
     p.a.length ? h('div', { class: 'authors' }, authorsLine(p.a, 8)) : null,
     p.in.length ? h('div', { class: 'inst' }, icon('building'), h('span', null, p.in.slice(0, 3).join(' · ') + (p.in.length > 3 ? ` · +${p.in.length - 3}` : ''))) : null,
     tk ? h('p', { class: 'takeaway' }, h('span', { class: 'ai-badge', title: T('aiTip') }, 'AI'), tk) : null,
@@ -1030,9 +1099,6 @@ function card(p) {
     (p.ab || absPending) ? h('details', { class: 'absd', open: absOpen },
       h('summary', null, T('abstract')),
       h('p', { class: 'abs', 'data-abs': absPending ? p.id : null }, p.ab ? hl(p.ab) : T('absLoading'))) : null,
-    h('div', { class: 'actions' },
-      h('button', { class: 'btn primary', type: 'button', 'data-open': p.id }, icon('spark'), T('openDetail')),
-      linkButtons(p)),
   ]);
 }
 function renderList(keepShown) {
@@ -1217,8 +1283,13 @@ function setTokens() {
   S.hlTest = hlToks.length ? new RegExp(hlToks.join('|'), 'i') : null;
 }
 function setQuery(q) {
+  const before = S.q;
   S.q = q.trim().slice(0, 300);
+  // A new search starts on best match unless another order was picked; best match needs a search.
+  if (S.q && !before && S.sort === 'new') S.sort = 'match';
+  else if (!S.q && S.sort === 'match') S.sort = 'new';
   setTokens();
+  renderSortOptions();
   refresh({ toTop: true });
   writeHash(false);
 }
@@ -1241,6 +1312,8 @@ function clearAll() {
   for (const f of FACETS) { S.sel[f.key].clear(); S.fq[f.key] = ''; }
   facetsEl.querySelectorAll('.fsearch').forEach(i => { i.value = ''; });
   S.q = ''; qInput.value = ''; setTokens();
+  if (S.sort === 'match') S.sort = 'new';
+  renderSortOptions();
   refresh({ toTop: true });
   writeHash(false);
 }
@@ -1503,43 +1576,79 @@ let dirDirty = true;   // the rows no longer match the list
 let dirCur = -1;       // the highlighted row
 const spyOn = new Set(); // indexes of the cards in the reading band
 let spy = null;
+let dirSort = null;      // null: the list's own order; else { k: 'a' | 'j' | 'd', dir: 1 (A–Z) | -1 (Z–A) }
+let dirRows = [];        // dirRows[i]: the row of the list's paper i
+const dirCols = $('#dirCols');
 function dirShown() { return dirOn && DIR_MQ.matches; }
-// The first author's family name (the row's tooltip has the title).
+// The first author's full name, given name first ("Family, Given" is turned round).
 function firstAuthor(p) {
-  if (!p.a.length) return '—';
-  const s = String(p.a[0]).trim();
-  return (s.includes(',') ? s.split(',')[0] : s.split(/\s+/).pop()) || s;
+  if (!p.a.length) return '';
+  const s = String(p.a[0]).trim().replace(/\s+/g, ' ');
+  const m = s.match(/^([^,]+),\s*([^,]+)$/);
+  return m ? `${m[2]} ${m[1]}` : s;
 }
 function topSpy() { let m = Infinity; for (const i of spyOn) if (i < m) m = i; return m === Infinity ? -1 : m; }
+// The rows' order: the list's own, or sorted by one column as shown (author name, journal
+// short name, date). Missing values go last; ties keep the list's order.
+function dirOrder(res) {
+  const idx = res.map((_, i) => i);
+  if (!dirSort) return idx;
+  const { k, dir } = dirSort;
+  const key = res.map(p => (k === 'a' ? firstAuthor(p) : k === 'j' ? journalInfo(p.j).ab : p._dk));
+  const cmp = k === 'd' ? (x, y) => (x < y ? -1 : x > y ? 1 : 0) : collator.compare;
+  return idx.sort((x, y) => {
+    const a = key[x]; const b = key[y];
+    if (!a || !b) return (!a - !b) || (x - y);
+    return (cmp(a, b) * dir) || (x - y);
+  });
+}
 function renderDir() {
   if (!dirShown() || !DATA.ready) return;
   dirDirty = false;
   const res = computed.results;
   $('#dirCount').textContent = fmtN(res.length);
   const frag = document.createDocumentFragment();
-  for (let i = 0; i < res.length; i++) {
+  dirRows = new Array(res.length);
+  dirOrder(res).forEach((i, pos) => {
     const p = res[i];
     const gray = isGray(p.tp[0]);
-    const row = h('button', { class: 'drow' + (gray ? ' gray' : ''), type: 'button', 'data-i': i, tabindex: i ? -1 : 0, title: p.t },
-      h('span', { class: 'a' }, firstAuthor(p)), h('span', { class: 'j' }, journalInfo(p.j).ab), h('span', { class: 'd' }, p.d || '—'));
+    const name = firstAuthor(p);
+    const row = h('button', { class: 'drow' + (gray ? ' gray' : ''), type: 'button', 'data-i': i, tabindex: pos ? -1 : 0,
+      title: p.t + '\n' + [name, p.j].filter(Boolean).join(' · ') },
+      h('span', { class: 'a' }, name || '—'), h('span', { class: 'j' }, journalInfo(p.j).ab), h('span', { class: 'd' }, p.d || '—'));
     if (!gray) paint(row, p.tp[0]);
+    dirRows[i] = row;
     frag.append(row);
-  }
+  });
   dirList.replaceChildren(frag);
   if (!res.length) dirList.append(h('div', { class: 'dir-empty' }, T('noResults')));
   dirCur = -1;
   markDir(Math.max(0, topSpy()), true);
 }
+// Column headings: a click sorts the directory A–Z (dates: oldest first), the next Z–A,
+// the third returns to the list's order. The cards keep their own order.
+function renderDirCols() {
+  for (const b of dirCols.querySelectorAll('.dsort')) {
+    const k = b.dataset.k; const label = T({ a: 'dirA', j: 'dirJ', d: 'dirD' }[k]);
+    const on = !!dirSort && dirSort.k === k;
+    const next = !on ? 1 : dirSort.dir === 1 ? -1 : 0;
+    const tip = next === 0 ? T('dsOff') : k === 'd' ? T(next === 1 ? 'dsAscD' : 'dsDescD') : T(next === 1 ? 'dsAsc' : 'dsDesc')(label.toLowerCase());
+    put(b, h('span', null, label), icon(on ? (dirSort.dir === 1 ? 'up' : 'down') : 'sort'));
+    b.setAttribute('aria-pressed', String(on));
+    b.title = tip;
+    b.setAttribute('aria-label', next === 0 ? `${label} · ${tip}` : tip);
+  }
+}
 function markDir(i, follow) {
   if (!dirShown() || dirDirty || i === dirCur) return;
-  const old = dirList.children[dirCur];
+  const old = dirRows[dirCur];
   if (old) old.classList.remove('cur');
   dirCur = i;
-  const row = dirList.children[i];
-  if (!row || !row.classList.contains('drow')) return;
+  const row = dirRows[i];
+  if (!row) return;
   row.classList.add('cur');
-  // follow the list, but never while the visitor is using the directory
-  if (follow && !dirEl.matches(':hover') && !dirEl.contains(document.activeElement)) keepInView(row);
+  // follow the list while the rows are in its order, but never while the visitor is using the directory
+  if (follow && !dirSort && !dirEl.matches(':hover') && !dirEl.contains(document.activeElement)) keepInView(row);
 }
 function keepInView(row) {
   const top = row.offsetTop; const bottom = top + row.offsetHeight;
@@ -1578,16 +1687,27 @@ dirList.addEventListener('click', e => { const b = e.target.closest('.drow'); if
 dirList.addEventListener('keydown', e => {
   const b = e.target.closest('.drow');
   if (!b) return;
-  const n = computed.results.length; let i = Number(b.dataset.i);
+  const rows = dirList.children; const n = rows.length;
+  let pos = Array.prototype.indexOf.call(rows, b); // keys move through the rows as shown
   const step = { ArrowDown: 1, ArrowUp: -1, PageDown: 10, PageUp: -10 }[e.key];
-  if (step) i = Math.max(0, Math.min(n - 1, i + step));
-  else if (e.key === 'Home') i = 0;
-  else if (e.key === 'End') i = n - 1;
+  if (step) pos = Math.max(0, Math.min(n - 1, pos + step));
+  else if (e.key === 'Home') pos = 0;
+  else if (e.key === 'End') pos = n - 1;
   else return;
   e.preventDefault();
-  const t = dirList.children[i];
-  if (!t) return;
+  const t = rows[pos];
+  if (!t || !t.classList.contains('drow')) return;
   b.tabIndex = -1; t.tabIndex = 0; t.focus({ preventScroll: true }); keepInView(t);
+});
+dirCols.addEventListener('click', e => {
+  const b = e.target.closest('.dsort');
+  if (!b) return;
+  const k = b.dataset.k;
+  dirSort = !dirSort || dirSort.k !== k ? { k, dir: 1 } : dirSort.dir === 1 ? { k, dir: -1 } : null;
+  renderDirCols();
+  dirDirty = true;
+  renderDir();
+  dirList.scrollTop = 0;
 });
 dirBtn.addEventListener('click', () => setDir(!dirOn, true));
 $('#dirClose').addEventListener('click', () => { setDir(false, true); dirBtn.focus(); });
@@ -1619,13 +1739,20 @@ function renderFooter() {
 }
 
 /* ------------------------------------------------------------------ language + static text */
+// Sort orders on offer: best match only while searching, and then it is the default.
+function sortsOn() { return S.q ? ['match', ...SORTS] : SORTS; }
+function sortDefault() { return S.q ? 'match' : 'new'; }
+function renderSortOptions() {
+  sortSel.replaceChildren(...sortsOn().map(s =>
+    h('option', { value: s, title: s === 'if' || s === 'match' ? T('sortTip_' + s) : null }, T('sort_' + s))));
+  sortSel.value = S.sort;
+}
 function applyStaticText() {
   document.documentElement.lang = isZh() ? 'zh-CN' : 'en';
   qInput.placeholder = T('searchPh');
   qInput.setAttribute('aria-label', T('search'));
   sortSel.setAttribute('aria-label', T('sortLabel'));
-  sortSel.replaceChildren(...SORTS.map(s => h('option', { value: s }, T('sort_' + s))));
-  sortSel.value = S.sort;
+  renderSortOptions();
   const lb = $('#langBtn'); lb.textContent = T('langBtn'); lb.lang = isZh() ? 'en' : 'zh-CN';
   $('#aboutBtn').textContent = T('about');
   $('#filtersTitle').textContent = T('filters');
@@ -1633,7 +1760,7 @@ function applyStaticText() {
   put(dirBtn, icon('list'), T('dir'));
   dirBtn.title = T(dirOn ? 'dirHide' : 'dirShow');
   $('#dirTitle').textContent = T('dir'); $('#dirTitle').title = T('dirTip');
-  $('#dirA').textContent = T('dirA'); $('#dirJ').textContent = T('dirJ'); $('#dirD').textContent = T('dirD');
+  renderDirCols();
   $('#dirClose').setAttribute('aria-label', T('dirHide')); $('#dirClose').title = T('dirHide');
   toTopBtn.title = T('toTop'); toTopBtn.setAttribute('aria-label', T('toTop'));
   if (!DATA.ready) put(filtersBtn, icon('filter'), T('filters')); // label before data arrives; renderActive adds the badge
@@ -1663,7 +1790,8 @@ function readHash() {
   lastHash = raw;
   const sp = new URLSearchParams(raw);
   S.q = (sp.get('q') || '').slice(0, 300);
-  S.sort = SORTS.includes(sp.get('sort')) ? sp.get('sort') : 'new'; // an old sort=rel link falls back to newest
+  const so = sp.get('sort');
+  S.sort = sortsOn().includes(so) ? so : sortDefault(); // an old sort=rel link gets the default order
   for (const f of FACETS) S.sel[f.key] = new Set(sp.getAll(f.key).filter(Boolean).slice(0, 50));
   // Links from before the date filter used year= and month=; they become custom date choices.
   for (const v of [...sp.getAll('year'), ...sp.getAll('month')]) S.sel.date.add(v);
@@ -1677,7 +1805,7 @@ function readHash() {
 function writeHash(push) {
   const sp = new URLSearchParams();
   if (S.q) sp.set('q', S.q);
-  if (S.sort !== 'new') sp.set('sort', S.sort);
+  if (S.sort !== sortDefault()) sp.set('sort', S.sort);
   if (S.win) sp.set('win', S.win);
   for (const f of FACETS) for (const v of S.sel[f.key]) sp.append(f.key, v);
   if (isZh()) sp.set('lang', 'zh');
@@ -1694,7 +1822,7 @@ function onNav() {
   const before = filterSig(); const beforeLang = S.lang;
   readHash();
   if (S.lang !== beforeLang) applyStaticText();
-  qInput.value = S.q; sortSel.value = S.sort;
+  qInput.value = S.q; renderSortOptions();
   if (filterSig() !== before || S.lang !== beforeLang) refresh();
   if (S.p && DATA.byId.has(S.p)) { S.pushed = false; openDetail(S.p, true); }
   else if (dlg.open) { S.p = null; S.pushed = false; dlg.close(); }
@@ -1706,7 +1834,7 @@ window.addEventListener('hashchange', onNav);
 let qTimer = 0;
 qInput.addEventListener('input', () => { clearTimeout(qTimer); qTimer = setTimeout(() => setQuery(qInput.value), 180); });
 qInput.addEventListener('keydown', e => { if (e.key === 'Enter') { clearTimeout(qTimer); setQuery(qInput.value); qInput.blur(); } });
-sortSel.addEventListener('change', () => { S.sort = SORTS.includes(sortSel.value) ? sortSel.value : 'new'; refresh({ toTop: true }); writeHash(false); });
+sortSel.addEventListener('change', () => { S.sort = sortsOn().includes(sortSel.value) ? sortSel.value : sortDefault(); refresh({ toTop: true }); writeHash(false); });
 facetsEl.addEventListener('change', e => {
   const r = e.target.closest('input[type=radio][name=win]');
   if (r) { setWin(r.value); return; }

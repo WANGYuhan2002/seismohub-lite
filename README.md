@@ -17,9 +17,21 @@ What you can do on the page:
     snapshot date, or any months you pick.
   - The journal list puts the highest impact factor first. Preprint
     servers and open platforms come last.
+  - Sort by newest, oldest, journal impact factor or title. The impact
+    factor sort keeps each journal's papers together, in the journal list's
+    order, newest first. The impact factors are approximate JCR values; they
+    set the order and are not shown.
+  - A search sorts by best match: papers with the search terms in the title
+    come first, then those with them in the keywords or authors, then those
+    with them only in the abstract. Newest is still one click away.
+- Click a paper's title to open it through its DOI (or its own link) in a
+  new tab. The AI button at the top right of each paper opens its abstract
+  and AI analysis.
 - On wide screens (1200 px and up), use the Browse directory on the right.
-  It lists the current papers by first author, journal and date. Click a row
-  to jump to that paper. The Browse button hides or shows it.
+  It lists the current papers by first author (full name), journal and date.
+  Click a row to jump to that paper. Click a column heading to sort the
+  directory A–Z, then Z–A, then back to the list's order; the papers in the
+  middle keep their order. The Browse button hides or shows it.
 - Step through papers with ‹ / › or the arrow keys.
 - Copy a BibTeX entry, or export the current list as BibTeX or RIS.
 - Switch between English and Chinese.

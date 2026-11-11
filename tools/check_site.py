@@ -30,7 +30,16 @@ Checks:
     month= links still work); the journal filter ordered by impact factor
     with preprints and open platforms last; fixed topic colours; and on wide
     screens a Browse directory in its own column whose rows jump to their
-    paper, follow the scrolling, and can be hidden (remembered).
+    paper, follow the scrolling, and can be hidden (remembered);
+  * the owner's 2026-11-11 choices hold: the list can be sorted by journal
+    impact factor (each journal kept together, in the journal filter's order,
+    newest first inside), and a search sorts by best match (title hits
+    first, then keywords or authors, then the abstract) unless another order
+    was picked; the Browse directory shows each first author's full name,
+    and its three column headings sort it A–Z, Z–A, or back to the list's
+    order, without moving the cards; each card has the abstract & AI
+    analysis button (sparkles + italic "AI") and its DOI at the top right,
+    and the card title opens the paper's DOI (else its link) in a new tab.
 
 Usage:
     python3 tools/check_site.py [--shots DIR] [--base https://…/seismohub-lite]
@@ -145,6 +154,53 @@ DIR_STATE_JS = """(() => {
     getComputedStyle(document.querySelector('.layout')).gridTemplateColumns.split(' ').length, cur ? cur.dataset.i : null];
 })()"""
 
+# Each card's top right and title link: [paper id, AI button in the head, its label is an
+# italic "AI" after an icon, its accessible name, the buttons at the top right above the
+# title, link button href, title href, title target, title rel, an old bottom actions row].
+CARD_HEAD_JS = """(() => [...document.querySelectorAll('article.card')].map(c => {
+  const ai = c.querySelector('.card-head .cacts button[data-open]');
+  const i = ai && ai.querySelector('i');
+  const cr = c.getBoundingClientRect(); const box = c.querySelector('.card-head .cacts'); const t = c.querySelector('.title');
+  const r = box ? box.getBoundingClientRect() : null;
+  const a = c.querySelector('.title a'); const ln = c.querySelector('.cacts a.btn');
+  return [ai ? ai.getAttribute('data-open') : '', !!ai,
+    !!(i && i.textContent === 'AI' && getComputedStyle(i).fontStyle === 'italic' && ai.firstElementChild.tagName.toLowerCase() === 'svg'),
+    ai ? (ai.getAttribute('aria-label') || '') : '',
+    !!(r && cr.right - r.right < 24 && r.bottom <= t.getBoundingClientRect().top),
+    ln ? ln.getAttribute('href') : '', a ? a.getAttribute('href') : '', a ? a.getAttribute('target') : '', a ? (a.getAttribute('rel') || '') : '',
+    !!c.querySelector('.actions')];
+}))()"""
+
+# Paper ids of the rendered cards, in order, and the sort menu's values.
+CARD_IDS_JS = "[...document.querySelectorAll('article.card button[data-open]')].map(b => b.getAttribute('data-open'))"
+SORT_OPTS_JS = "[...document.querySelectorAll('#sort option')].map(o => o.value)"
+
+# The directory as shown: [list index, author, journal, date] per row.
+DIR_ROWS_JS = "[...document.querySelectorAll('#dirList .drow')].map(r => [Number(r.dataset.i), ...[...r.children].map(s => s.textContent)])"
+
+# Is the directory sorted by column col (1 author, 2 journal, 3 date) in direction dir,
+# missing values last and ties in the list's order? Uses the page's collation.
+# Returns [rows, rows out of order].
+DIR_SORTED_JS = """([col, dir]) => {
+  const rows = [...document.querySelectorAll('#dirList .drow')].map(r => [Number(r.dataset.i), r.children[col - 1].textContent]);
+  const coll = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
+  const key = s => (s === '—' ? '' : col === 3 && s.length === 4 ? s + '-00-00' : s);
+  const cmp = col === 3 ? (a, b) => (a < b ? -1 : a > b ? 1 : 0) : coll.compare;
+  let bad = 0;
+  for (let n = 1; n < rows.length; n++) {
+    const a = key(rows[n - 1][1]); const b = key(rows[n][1]); const tie = rows[n - 1][0] < rows[n][0];
+    let ok;
+    if (!a || !b) ok = !a ? (!b && tie) : true;
+    else { const c = cmp(a, b) * dir; ok = c < 0 || (c === 0 && tie); }
+    if (!ok) bad++;
+  }
+  return [rows.length, bad];
+}"""
+
+# The directory's column headings: [key, aria-pressed, label cut off?] per heading.
+DIR_HEADS_JS = """[...document.querySelectorAll('#dirCols .dsort')].map(b => [b.dataset.k, b.getAttribute('aria-pressed'),
+  b.firstElementChild.scrollWidth > b.firstElementChild.clientWidth + 1])"""
+
 # Horizontal overflow: the page, every rendered card, and the open dialog.
 OVERFLOW_JS = """(() => {
   const over = e => (e ? e.scrollWidth - e.clientWidth : 0);
@@ -247,6 +303,73 @@ def main() -> int:
     n30 = sum(1 for d in full_dates if (ref_day - d).days < 30)
     months = collections.Counter(p["d"][:7] for p in index["papers"] if len(p["d"]) >= 7)
     journal_counts = collections.Counter(p["j"] or "Others" for p in index["papers"])
+    abstracts = json.loads((DOCS / "data" / "abstracts.json").read_text(encoding="utf-8"))
+
+    def dkey(p):
+        d = p["d"] or ""
+        return d + "-00-00" if len(d) == 4 else d
+
+    def before_by_date(a, b) -> bool:
+        """The page's tie order: newer date first, then the smaller id."""
+        return dkey(a) > dkey(b) or (dkey(a) == dkey(b) and a["id"] < b["id"])
+
+    by_newest = sorted(sorted(index["papers"], key=lambda p: p["id"]), key=dkey, reverse=True)  # stable: ids ascend within a date
+
+    def fold(s) -> str:
+        """Python twin of the page's fold(): no accents, lower case."""
+        s = unicodedata.normalize("NFD", str(s or ""))
+        return "".join(c for c in s if not unicodedata.category(c).startswith("M")).lower()
+
+    def fold_hay(p) -> str:
+        """Python twin of the page's search text: title, authors, abstract, journal, keywords, DOI."""
+        ab = abstracts.get(p["id"])
+        return fold("\n".join([p["t"] or "Untitled", " ".join(p["a"]), ab if isinstance(ab, str) else "",
+                               p["j"] or "Others", " ".join(p["kw"]), p["doi"] or ""]))
+
+    def whole_word(text: str, t: str) -> bool:
+        i = text.find(t)
+        while i >= 0:
+            before = text[i - 1] if i > 0 else ""
+            after = text[i + len(t)] if i + len(t) < len(text) else ""
+            if not (before and unicodedata.category(before)[0] in "LN") and not (after and unicodedata.category(after)[0] in "LN"):
+                return True
+            i = text.find(t, i + 1)
+        return False
+
+    def match_score(p, toks) -> int:
+        """Python twin of the page's best-match score."""
+        title = fold(p["t"] or "Untitled")
+        names = fold(" ".join(p["a"]) + "\n" + " ".join(p["kw"]))
+        venue = fold((p["j"] or "Others") + "\n" + (p["doi"] or ""))
+        s = 0
+        for t in toks:
+            if t in title:
+                s += 10 if whole_word(title, t) else 8
+            elif t in names:
+                s += 4
+            elif t in venue:
+                s += 2
+            else:
+                s += 1
+        return s
+
+    def match_word() -> str:
+        """A search word some titles have and other matching papers have only in their
+        keywords, authors or abstract, so best match has something to reorder."""
+        for w in ("tomography", "inversion", "earthquake", "seismic", "noise", "fault"):
+            hits = [p for p in index["papers"] if w in fold_hay(p)]
+            in_title = sum(1 for p in hits if w in fold(p["t"]))
+            if in_title >= 3 and len(hits) - in_title >= 3:
+                return w
+        return ""
+
+    def full_name(p) -> str:
+        """The first author as the directory shows it: "Family, Given" turned round."""
+        if not p["a"]:
+            return "—"
+        s = " ".join(str(p["a"][0]).split())
+        m = re.fullmatch(r"([^,]+),\s*([^,]+)", s)
+        return f"{m.group(2)} {m.group(1)}" if m else s
 
     def journal_key(name: str):
         """(group, impact factor) as the page orders the journal filter."""
@@ -270,6 +393,63 @@ def main() -> int:
               f"{where}: journal filter is ordered by impact factor, preprints and open platforms last "
               f"({len(rows)} journals, {len(heads)} headings)")
 
+    def check_if_order(ids, where: str, expect=None):
+        """The impact-factor sort: each journal in one block, blocks in the journal
+        filter's order (counted over all papers), newest first inside a block."""
+        rank = lambda j: (journal_key(j)[0], -journal_key(j)[1], -journal_counts[j])  # noqa: E731
+        bad, done = None, set()
+        for x, y in zip(ids, ids[1:]):
+            a, b = by_id[x], by_id[y]
+            ja, jb = a["j"] or "Others", b["j"] or "Others"
+            if ja == jb:
+                if not before_by_date(a, b):
+                    bad = f"dates out of order in {ja}"
+                    break
+                continue
+            done.add(ja)
+            if jb in done:
+                bad = f"{jb} split in two"
+                break
+            if rank(ja) > rank(jb):
+                bad = f"{ja} before {jb}"
+                break
+        same = expect is None or sorted(ids) == sorted(expect)
+        check(bool(ids) and bad is None and same,
+              f"{where}: impact-factor sort keeps each journal together, highest first, newest first inside "
+              f"({len(ids)} papers, {len({by_id[i]['j'] for i in ids})} journals{'; ' + bad if bad else ''}{'' if same else '; wrong papers'})")
+
+    def pick_sort(page, value: str) -> bool:
+        """Choose a sort order; False, without Playwright's 30 s wait, when the menu lacks it."""
+        if value not in page.evaluate(SORT_OPTS_JS):
+            return False
+        page.select_option("#sort", value)
+        page.wait_for_timeout(300)
+        return True
+
+    def paper_href(p) -> str:
+        """Where a card's title should go: the DOI (as the page's doiUrl builds it), else the paper's own link."""
+        if p["doi"]:
+            return "https://doi.org/" + "/".join(quote(part, safe="!*'()") for part in str(p["doi"]).split("/"))
+        u = p["url"] or ""
+        return u if re.fullmatch(r"https?://\S+", u, re.I) else ""
+
+    def check_heads(page, where: str):
+        """The owner's 2026-11-11 card points: AI button and DOI at the top right, title to the DOI."""
+        rows = [r for r in page.evaluate(CARD_HEAD_JS) if r[0] in by_id]
+        bad = []
+        for r in rows:
+            p = by_id[r[0]]
+            want = paper_href(p)
+            ok = r[1] and r[2] and bool(r[3]) and r[4] and not r[9]
+            if want:
+                ok = ok and r[5] == want and r[6] == want and r[7] == "_blank" and "noopener" in r[8]
+            else:
+                ok = ok and r[6] == "#p=" + p["id"]
+            if not ok:
+                bad.append(r[0])
+        check(bool(rows) and not bad, f"{where}: AI button (sparkles + italic AI) and DOI at each card's top right, "
+                                      f"title opens the DOI in a new tab ({len(rows)} cards, {len(bad)} wrong)")
+
     def check_cards(page, where: str, min_title: float):
         """The owner's four style points, on every card rendered so far."""
         rows = page.evaluate(CARD_LOOK_JS)
@@ -289,6 +469,7 @@ def main() -> int:
         check(all(r[8] for r in rows), f"{where}: the person icons make no author line taller")
         said = [r[0] for r in known if by_id[r[0]]["a"] and not squash(r[9]).startswith(squash(", ".join(by_id[r[0]]["a"][:8])))]
         check(not said, f"{where}: author lists still read and copy as 'A, B, C' ({len(said)} wrong)")
+        check_heads(page, where)
 
     def check_dialog_authors(page, pid: str, where: str):
         dl = page.evaluate(DIALOG_LOOK_JS)
@@ -382,6 +563,79 @@ def main() -> int:
             sorts = page.evaluate("[...document.querySelectorAll('#sort option')].map(o => o.value)")
             check(page.locator(".rel").count() == 0 and "rel" not in sorts, f"no relevance score or relevance sort ({sorts})")
 
+            # sort orders (owner, 2026-11-11): newest, oldest, journal impact factor, title;
+            # best match only while searching, and a new search starts on it
+            opts = page.evaluate(SORT_OPTS_JS)
+            check(opts == ["new", "old", "if", "title"], f"sort menu without a search: newest, oldest, impact factor, title ({opts})")
+            if pick_sort(page, "if"):
+                check("sort=if" in page.url, "impact-factor sort stored in URL")
+                check_if_order(page.evaluate(CARD_IDS_JS), "all papers, first batch")
+                page.goto(base + "/#win=30&sort=if")
+                page.wait_for_timeout(500)
+                for _ in range(80):
+                    if page.locator("#more").is_hidden():
+                        break
+                    page.locator("#more").click()
+                    page.wait_for_timeout(60)
+                win30 = [p["id"] for p in index["papers"] if len(p["d"]) == 10 and (ref_day - dt.date.fromisoformat(p["d"])).days < 30]
+                check_if_order(page.evaluate(CARD_IDS_JS), "last 30 days, every card", win30)
+            page.goto(base + "/")
+            page.wait_for_selector("article.card", timeout=20000)
+            wait_abstracts(page)
+            mw = match_word()
+            if mw:
+                page.fill("#q", mw)
+                page.wait_for_timeout(600)
+                wait_abstracts(page)
+                opts = page.evaluate(SORT_OPTS_JS)
+                check(page.locator("#sort").input_value() == "match" and opts == ["match", "new", "old", "if", "title"] and "sort=" not in page.url,
+                      f"a new search switches to best match, offered first ({opts})")
+                hits = [p for p in index["papers"] if mw in fold_hay(p)]
+                n_title = sum(1 for p in hits if mw in fold(p["t"]))
+                ids = page.evaluate(CARD_IDS_JS)
+                sc = [match_score(by_id[i], [mw]) for i in ids]
+                ordered = all(s1 > s2 or (s1 == s2 and before_by_date(by_id[a], by_id[b]))
+                              for a, b, s1, s2 in zip(ids, ids[1:], sc, sc[1:]))
+                lead = sum(1 for i in ids[:n_title] if mw in fold(by_id[i]["t"]))
+                ct = count_text(page)
+                check(ordered and lead == min(n_title, len(ids)) and ct.startswith(f"{len(hits):,} of "),
+                      f"best match for {mw!r}: the {n_title} title hits come first, then keywords or authors, then abstracts ({ct!r})")
+                pick_sort(page, "new")
+                ids = page.evaluate(CARD_IDS_JS)
+                check("sort=new" in page.url and all(before_by_date(by_id[a], by_id[b]) for a, b in zip(ids, ids[1:])),
+                      "newest can still be picked while searching")
+                page.fill("#q", "")
+                page.wait_for_timeout(500)
+                check(page.locator("#sort").input_value() == "new" and "match" not in page.evaluate(SORT_OPTS_JS),
+                      "clearing the search takes best match away")
+                kept = None
+                if pick_sort(page, "if"):
+                    page.fill("#q", mw)
+                    page.wait_for_timeout(600)
+                    kept = page.locator("#sort").input_value()
+                page.fill("#q", "")
+                page.wait_for_timeout(500)
+                check(kept == "if" and page.locator("#sort").input_value() == "if", f"an order picked before a search stays ({kept})")
+                got = []
+                for frag in (urlencode({"q": mw}), urlencode({"q": mw, "sort": "new"}), "sort=match"):
+                    page.goto(base + "/#" + frag)
+                    page.wait_for_timeout(400)
+                    got.append(page.locator("#sort").input_value())
+                check(got == ["match", "new", "new"], f"links: q= opens on best match, sort=new keeps newest, best match needs a search ({got})")
+            else:
+                notes.append("info no word for the best-match check; skipped it")
+            page.goto(base + "/")
+            page.wait_for_selector("article.card", timeout=20000)
+            check(count_text(page).strip() == f"{total:,} papers" and page.locator("#sort").input_value() == "new", "back to the full list, newest first")
+            # papers without a DOI: the title and the top-right button go to the paper's own link
+            no_doi = collections.Counter(p["j"] or "Others" for p in index["papers"] if not p["doi"])
+            if no_doi:
+                page.goto(base + "/#" + urlencode({"journal": no_doi.most_common(1)[0][0]}, quote_via=quote))
+                page.wait_for_timeout(500)
+                check_heads(page, f"{no_doi.most_common(1)[0][0]} (no DOI on {no_doi.most_common(1)[0][1]} papers)")
+                page.goto(base + "/")
+                page.wait_for_selector("article.card", timeout=20000)
+
             # date filter: last 7 / 30 days counted back from the snapshot date, all, or custom months
             wins = page.evaluate("[...document.querySelectorAll('.facet[data-key=\"date\"] .fwin .fval .n')].map(n => n.textContent)")
             check(wins == [f"{n7:,}", f"{n30:,}", f"{total:,}"], f"date filter offers last 7 days, last 30 days and all ({wins})")
@@ -446,6 +700,51 @@ def main() -> int:
             page.wait_for_timeout(300)
             d = page.evaluate(DIR_STATE_JS)
             check(d[0] == "flex" and d[1] == total, f"the Browse button shows it again ({d})")
+            # first authors' full names (owner, 2026-11-11), rows in the list's order
+            rows = page.evaluate(DIR_ROWS_JS)
+            want = [full_name(p) for p in by_newest]
+            wrong = sum(1 for r, w in zip(rows, want) if r[1] != w)
+            check(len(rows) == len(want) and not wrong and all(r[0] == n for n, r in enumerate(rows)),
+                  f"directory rows follow the list and show each first author's full name ({len(rows)} rows, {wrong} wrong)")
+            heads = page.evaluate(DIR_HEADS_JS)
+            check([x[0] for x in heads] == ["a", "j", "d"] and not any(x[2] for x in heads), f"three column headings, none cut off ({heads})")
+            # each heading sorts the directory A–Z, then Z–A, then back to the list's order; the cards stay put
+            first_cards = page.evaluate(CARD_IDS_JS)[:5]
+            for col, k in (((1, "a"), (2, "j"), (3, "d")) if page.locator("#dirCols .dsort").count() == 3 else ()):
+                head = page.locator(f'#dirCols .dsort[data-k="{k}"]')
+                head.click()
+                page.wait_for_timeout(250)
+                up = page.evaluate(DIR_SORTED_JS, [col, 1])
+                pressed = [x[1] for x in page.evaluate(DIR_HEADS_JS)]
+                head.click()
+                page.wait_for_timeout(250)
+                down = page.evaluate(DIR_SORTED_JS, [col, -1])
+                head.click()
+                page.wait_for_timeout(250)
+                back = page.evaluate(DIR_ROWS_JS)
+                check(up == [total, 0] and down == [total, 0] and pressed == [str(x == k).lower() for x in ("a", "j", "d")]
+                      and all(r[0] == n for n, r in enumerate(back)),
+                      f"directory heading {k!r}: A–Z, then Z–A, then the list's order again (out of order: {up[1]}, {down[1]})")
+            if page.locator("#dirCols .dsort").count() == 3:
+                check(page.evaluate(CARD_IDS_JS)[:5] == first_cards, "sorting the directory leaves the cards where they are")
+                page.locator('#dirCols .dsort[data-k="a"]').click()
+                page.wait_for_timeout(250)
+                row = page.locator("#dirList .drow").nth(3)
+                ri, rtitle = row.get_attribute("data-i"), (row.get_attribute("title") or "").split("\n")[0]
+                row.click()
+                page.wait_for_timeout(400)
+                landed = page.evaluate(f"""(() => {{ const c = document.querySelector('article.card[data-i="{ri}"]');
+                  return c ? [Math.round(c.getBoundingClientRect().top - parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--top-h'))),
+                              c.querySelector('.title').textContent] : null; }})()""")
+                check(landed is not None and 0 <= landed[0] < 40 and squash(landed[1]) == squash(rtitle),
+                      f"a row of the sorted directory jumps to its own paper (row {ri}, {landed and landed[0]}px)")
+                page.locator('#dirCols .dsort[data-k="a"]').click()
+                page.locator('#dirCols .dsort[data-k="a"]').click()
+                page.wait_for_timeout(250)
+            page.set_viewport_size({"width": 1440, "height": 900})
+            page.wait_for_timeout(300)
+            cols = page.evaluate("getComputedStyle(document.querySelector('.layout')).gridTemplateColumns")
+            check(cols.split()[-1] == "340px", f"at 1440px the directory is wider, for full names ({cols})")
             page.set_viewport_size({"width": 1024, "height": 800})
             page.wait_for_timeout(200)
             narrow = page.evaluate("[getComputedStyle(document.querySelector('#dir')).display, getComputedStyle(document.querySelector('#dirBtn')).display]")
@@ -641,6 +940,15 @@ def main() -> int:
                 check(ov[3] <= 0 and ov[4] <= 0, f"360px, {label}: the dialog does not overflow (toolbar {ov[3]}px, body {ov[4]}px)")
                 page.locator("#dClose").tap()
                 page.wait_for_timeout(300)
+            # the sort menu (widest while searching) leaves the search box room, in both languages
+            page.goto(base + "/#" + urlencode({"q": "seismic"}))
+            page.wait_for_timeout(400)
+            widths = []
+            for _ in range(2):
+                widths.append(page.evaluate("Math.round(document.querySelector('.search').getBoundingClientRect().width)"))
+                page.locator("#langBtn").tap()
+                page.wait_for_timeout(300)
+            check(min(widths) >= 100, f"360px: the search box keeps its room next to the sort menu while searching ({widths} px, zh then en)")
             ctx.close()
 
             # ---------------------------------------------------------- dark mode
