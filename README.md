@@ -34,7 +34,8 @@ What you can do on the page:
   middle keep their order. The Browse button hides or shows it.
 - Step through papers with ‹ / › or the arrow keys.
 - Copy a BibTeX entry, or export the current list as BibTeX or RIS.
-- Switch between English and Chinese.
+- The page opens in English. The 中文 button switches to Chinese, and the
+  browser remembers that choice.
 
 The page works on phones.
 

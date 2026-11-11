@@ -14,7 +14,9 @@ Checks:
   * search, facet filters, sorting and infinite scroll work;
   * the detail dialog works, with prev/next and arrow keys;
   * BibTeX/RIS export and "copy BibTeX" work;
-  * the language switch, Chinese labels, deep links and back-to-top work;
+  * the page opens in English, also in a Chinese browser; the language
+    switch, its memory, Chinese labels, deep links and back-to-top work;
+    the header says when the data was last updated;
   * the mobile filter drawer works, and there is no horizontal overflow at
     phone width (390 and 360 px, including the longest author and journal
     names);
@@ -363,6 +365,11 @@ def main() -> int:
                 return w
         return ""
 
+    def en_date(s: str) -> str:
+        """Python twin of the page's English fmtDate for a full date."""
+        months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        return f"{int(s[8:10])} {months[int(s[5:7]) - 1]} {s[:4]}" if re.fullmatch(r"\d{4}-\d{2}-\d{2}", s) else (s or "—")
+
     def full_name(p) -> str:
         """The first author as the directory shows it: "Family, Given" turned round."""
         if not p["a"]:
@@ -501,6 +508,8 @@ def main() -> int:
             wait_abstracts(page)
             notes.append(f"info abstracts ready after {time.time() - t0:.2f}s")
             check(f"{total:,} papers" in count_text(page), f"count shows {total:,} papers ({count_text(page)!r})")
+            stats = page.locator("#stats").inner_text().strip()
+            check(stats == f"{total:,} papers · updated {en_date(generated)}", f"the header says when the data was last updated ({stats!r})")
             check(page.locator("article.card").count() == 40, "first batch renders 40 cards")
             check(page.locator('.facet[data-key="topic"] .fval').count() > 5, "topic facet lists values")
             check_journal_order(page, "desktop", True)
@@ -878,7 +887,14 @@ def main() -> int:
             wire(page)
             page.goto(base + "/")
             page.wait_for_selector("article.card", timeout=20000)
-            check(page.locator("#langBtn").inner_text().strip() == "EN", "zh-CN browser starts in Chinese")
+            check(page.locator("#langBtn").inner_text().strip() == "中文", "a zh-CN browser still opens in English, the default")
+            page.locator("#langBtn").tap()
+            page.wait_for_timeout(400)
+            page.goto(base + "/")  # no lang= in the URL: the choice must come from local storage
+            page.wait_for_selector("article.card", timeout=20000)
+            stats = page.locator("#stats").inner_text().strip()
+            check(page.locator("#langBtn").inner_text().strip() == "EN" and stats == f"{total:,} 篇 · 更新于 {generated}",
+                  f"Chinese is one click away and remembered; the header says 更新于 ({stats!r})")
             check(bool(CJK.search(page.locator("article.card .chip.t").first.inner_text())), "cards show Chinese topic labels")
             overflow = page.evaluate("document.documentElement.scrollWidth - window.innerWidth")
             check(overflow <= 0, f"no horizontal overflow at 390px (overflow {overflow}px)")
@@ -948,7 +964,7 @@ def main() -> int:
                 widths.append(page.evaluate("Math.round(document.querySelector('.search').getBoundingClientRect().width)"))
                 page.locator("#langBtn").tap()
                 page.wait_for_timeout(300)
-            check(min(widths) >= 100, f"360px: the search box keeps its room next to the sort menu while searching ({widths} px, zh then en)")
+            check(min(widths) >= 100, f"360px: the search box keeps its room next to the sort menu while searching ({widths} px, both languages)")
             ctx.close()
 
             # ---------------------------------------------------------- dark mode

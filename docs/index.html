@@ -606,7 +606,7 @@ const I18N = {
     sortTip_if: 'Journal impact factor, high to low; preprints and open platforms last',
     sortTip_match: 'Search terms in the title first, then in keywords or authors, then only in the abstract',
     filters: 'Filters', clearAll: 'Clear all', about: 'About', langBtn: '中文', search: 'Search',
-    stats: (n, d) => `${n} papers · snapshot ${d}`,
+    stats: (n, d) => `${n} papers · updated ${fmtDate(d)}`,
     count: (n, total) => (n === total ? `${total} papers` : `${n} of ${total} papers`),
     showN: n => `Show ${n} papers`,
     f_date: 'Date', f_topic: 'Topic', f_journal: 'Journal', f_keyword: 'Keyword',
@@ -614,7 +614,7 @@ const I18N = {
     fsearch: 'Filter this list…', fmore: n => `${n} more — type above to narrow`, fnone: 'No matches',
     remove: 'Remove filter', filterBy: v => `Filter by “${v}”`,
     win7: 'Last 7 days', win30: 'Last 30 days', winAll: 'All dates', custom: 'Custom: year / month',
-    winNote: d => `Counted back from the snapshot date, ${d}.`,
+    winNote: d => `Counted back from the last update, ${fmtDate(d)}.`,
     jNote: 'Highest impact factor first; preprints and open platforms last.',
     jOther: 'Other journals', jPre: 'Preprints & open platforms',
     dir: 'Browse', dirShow: 'Show the Browse directory', dirHide: 'Hide the Browse directory',
@@ -668,7 +668,7 @@ const I18N = {
     sortTip_if: '期刊影响因子从高到低；预印本与开放平台排在最后',
     sortTip_match: '搜索词在标题里的排最前，其次是关键词或作者，只在摘要里的排最后',
     filters: '筛选', clearAll: '全部清除', about: '关于', langBtn: 'EN', search: '搜索',
-    stats: (n, d) => `${n} 篇 · 快照日期 ${d}`,
+    stats: (n, d) => `${n} 篇 · 更新于 ${d}`,
     count: (n, total) => (n === total ? `共 ${total} 篇` : `${n} / ${total} 篇`),
     showN: n => `查看 ${n} 篇`,
     f_date: '日期', f_topic: '主题', f_journal: '期刊', f_keyword: '关键词',
@@ -676,7 +676,7 @@ const I18N = {
     fsearch: '在列表中查找…', fmore: n => `还有 ${n} 项，可在上方输入查找`, fnone: '没有匹配项',
     remove: '移除筛选', filterBy: v => `按“${v}”筛选`,
     win7: '最近 7 天', win30: '最近 30 天', winAll: '全部日期', custom: '自定义：年 / 月',
-    winNote: d => `从快照日期 ${d} 往前算。`,
+    winNote: d => `从更新日期 ${d} 往前算。`,
     jNote: '按影响因子从高到低排列；预印本与开放平台排在最后。',
     jOther: '其他期刊', jPre: '预印本与开放平台',
     dir: '目录', dirShow: '显示目录', dirHide: '隐藏目录',
@@ -1882,7 +1882,7 @@ window.addEventListener('resize', measureTop);
 (function boot() {
   let stored = null;
   try { stored = localStorage.getItem(LS_LANG); } catch (e) { stored = null; }
-  S.lang = stored === 'zh' || stored === 'en' ? stored : ((navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en');
+  S.lang = stored === 'zh' || stored === 'en' ? stored : 'en'; // English first; the 中文 button switches (and is remembered)
   try { dirOn = localStorage.getItem(LS_DIR) !== 'off'; } catch (e) { dirOn = true; }
   setDir(dirOn, false); // before the first render, so the layout does not jump
   readHash();
