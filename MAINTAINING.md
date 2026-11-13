@@ -47,9 +47,26 @@ only whitelisted columns. It never exports:
 - verbatim figure-caption excerpts
 - the AI's group-specific follow-up suggestions
 - papers that the app's topic classifier labels "Off-topic / not seismology"
+- anything from an AI analysis made from a PDF (see below)
 
 To export the follow-up suggestions anyway, pass `--include-group-followups`.
 The privacy scan blocks them by default.
+
+### Papers analysed from a PDF
+
+The desktop app redoes a paper's analysis from its PDF once the PDF is
+attached, and that analysis also sets the paper's topics. The site promises
+that no full text was used, so the exporter publishes nothing from such an
+analysis:
+
+- If the paper is already on the site, it keeps the AI note, takeaway, topics,
+  keywords, facets and relevance shown in the last published snapshot. Those
+  were made from the abstract. The exporter reads them with git from
+  `--previous` (`HEAD` by default).
+- If the paper has never been on the site, it appears with its metadata and
+  abstract only: topic "Others", no keywords, facets or note.
+
+Pass `--previous none` only for a first export into an empty repository.
 
 ## Automatic daily publish
 
@@ -65,8 +82,9 @@ these checks pass:
 - the export (read-only)
 - the data files and JSON field paths match the live snapshot exactly
 - paper count, total size and string length stay within limits
-- no AI analysis was made from a PDF, and every source label has been
-  published before
+- nothing from an AI analysis made from a PDF is in the export: each such
+  paper shows exactly what the live snapshot showed for it, or no AI content
+  if it is new; and every source label has been published before
 - `check_site.py` passes, and `privacy_scan.py` reports CLEAN
 - the commit changes only `docs/data/`
 - after the push, `check_site.py --base` passes on the live site
@@ -114,6 +132,15 @@ publish.
 推送就是公开发布，手动推送前要先确认扫描结果和改动内容。
 
 如果收到删除摘要的请求，把对应的 DOI 或期刊加进 `tools/abstract_blocklist.txt`，再重新导出。
+
+### 读过 PDF 的论文
+
+桌面版挂上 PDF 后会读 PDF 重新分析，这次分析也会改写论文的主题。网站承诺没有使用全文，所以这类分析的任何内容都不导出：
+
+- 论文已经在网站上：继续显示上一次发布时的 AI 笔记、一句话要点、主题、关键词、分面和相关度。这些都是根据摘要生成的，导出脚本用 git 从 `--previous`（默认 `HEAD`）读取。
+- 论文从没上过网站：只显示元数据和摘要，主题记为 “Others”，没有关键词、分面和 AI 笔记。
+
+只有往空仓库做第一次导出时才用 `--previous none`。每日自动发布还会单独核对一遍：这类论文显示的内容必须和线上快照完全一样，新论文必须不带任何 AI 内容，否则不推送。
 
 ### 每日自动发布
 

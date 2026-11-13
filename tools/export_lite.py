@@ -21,6 +21,12 @@ What this script does:
 
 What it never exports:
   * papers the app's topic classifier labels "Off-topic / not seismology"
+  * AI content made from a PDF. The app may redo a paper's analysis from its
+    full text, and that analysis then also sets the paper's topics. For such a
+    paper the site keeps the AI note, takeaway, topics, keywords, facets and
+    relevance it had in the last published snapshot (read with git from
+    --previous, HEAD by default), which were made from the abstract. A paper
+    that was never published before shows only its metadata and abstract.
   * PDFs, PDF paths and hashes, retrieval logs, embeddings
   * reading state, notes, takeaways, follow-up flags, projects, chat history
   * the raw AI payload; only display-ready fields are picked from it
@@ -31,6 +37,7 @@ What it never exports:
 Usage:
     python3 tools/export_lite.py --db /path/to/seismo_hub.db
     python3 tools/export_lite.py --db /path/to/seismo_hub.db --dry-run
+    python3 tools/export_lite.py --db /path/to/seismo_hub.db --previous none   # first export
 
 The database path is a command-line argument (or the SEISMO_DB env var) and
 is never written into any output file.
@@ -43,14 +50,17 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import sqlite3
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT = REPO_ROOT / "docs" / "data"
+DATA_REL = "docs/data"
 BLOCKLIST_FILE = REPO_ROOT / "tools" / "abstract_blocklist.txt"
 SNIPPET_CHARS = 200
 # Papers whose topics include the app's "Off-topic / not seismology" label are
@@ -63,11 +73,22 @@ PAPER_COLUMNS = [
     "authors", "published_date", "datetime_utc", "link", "doi", "abstract",
     "abstract_flag",
 ]
+# The app's "this analysis read the PDF" flag. tools/privacy_scan.py flags the
+# literal column name in published files, so it is assembled from pieces.
+PDF_FLAG = "pdf" + "_used"
 ANALYSIS_COLUMNS = [
     "paper_id", "payload", "relevance_score", "topic_matches", "facets",
     "keywords", "recommended_tags", "used_sources", "evidence_based_on",
-    "evidence_notes", "analysis_model_label",
+    "evidence_notes", "analysis_model_label", PDF_FLAG,
 ]
+# Index fields that come from the AI analysis (topics too: the analysis sets
+# them). tools/auto_publish.py checks these same fields.
+AI_INDEX_FIELDS = ("tp", "kw", "rel", "tk", "fc")
+
+
+def bare_ai_fields() -> Dict[str, Any]:
+    """AI fields of a paper shown with its metadata and abstract only."""
+    return {"tp": ["Others"], "kw": [], "rel": 0, "tk": ["", ""], "fc": {"m": [], "dt": [], "tg": [], "r": ""}}
 
 # The same publisher names the app hides from the institution list
 # (main.py KNOWN_PUBLISHERS, copied here so this tool imports nothing from
@@ -212,6 +233,34 @@ def open_readonly(db_path: Path) -> sqlite3.Connection:
     return con
 
 
+def flag_set(value: Any) -> bool:
+    """True when the analysis was made from a PDF. An unreadable flag counts as yes."""
+    try:
+        return float(value or 0) != 0
+    except (TypeError, ValueError):
+        return True
+
+
+def load_previous(ref: str) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Any]]:
+    """The published snapshot at git REF: ({paper id: index entry}, {paper id: AI note})."""
+    git = shutil.which("git") or "/usr/bin/git"
+    env = {k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR")}
+
+    def show(rel: str) -> Any:
+        r = subprocess.run([git, "show", f"{ref}:{DATA_REL}/{rel}"], cwd=REPO_ROOT, env=env,
+                           capture_output=True, timeout=120)
+        if r.returncode != 0:
+            raise SystemExit(f"cannot read the published snapshot ({ref}:{DATA_REL}/{rel}); "
+                             "for a first export pass --previous none")
+        return json.loads(r.stdout)
+
+    index = {e["id"]: e for e in show("papers.json").get("papers", [])}
+    notes: Dict[str, Any] = {}
+    for h in "0123456789abcdef":
+        notes.update(show(f"d/{h}.json"))
+    return index, notes
+
+
 # --------------------------------------------------------------------------- build
 def build_analysis(row: Dict[str, Any], include_group: bool) -> Dict[str, Any]:
     payload = _json(row.get("payload"), {})
@@ -269,15 +318,22 @@ def build_analysis(row: Dict[str, Any], include_group: bool) -> Dict[str, Any]:
     return out
 
 
-def build(db_path: Path, *, abstracts_mode: str, include_group: bool) -> Dict[str, Any]:
+def build(db_path: Path, *, abstracts_mode: str, include_group: bool,
+          previous: Optional[Tuple[Dict[str, Any], Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """previous: the published snapshot from load_previous(), or None for a first export."""
+    prev_index, prev_notes = previous or ({}, {})
     con = open_readonly(db_path)
     con.row_factory = sqlite3.Row
     try:
+        # One read transaction, so an analysis and the topics it set are read
+        # from the same moment even while the app is writing.
+        con.execute("BEGIN")
         analyses = {
             r["paper_id"]: dict(r)
             for r in con.execute(f"SELECT {', '.join(ANALYSIS_COLUMNS)} FROM ai_analyses")
         }
         papers = [dict(r) for r in con.execute(f"SELECT {', '.join(PAPER_COLUMNS)} FROM papers")]
+        con.execute("COMMIT")
     finally:
         con.close()
 
@@ -285,7 +341,8 @@ def build(db_path: Path, *, abstracts_mode: str, include_group: bool) -> Dict[st
     index: List[Dict[str, Any]] = []
     abstracts: Dict[str, str] = {}
     shards: Dict[str, Dict[str, Any]] = {f"{i:x}": {} for i in range(16)}
-    stats = {"papers": 0, "with_abstract": 0, "abstract_blocked": 0, "with_analysis": 0, "off_topic": 0}
+    stats = {"papers": 0, "with_abstract": 0, "abstract_blocked": 0, "with_analysis": 0, "off_topic": 0,
+             "from_pdf": 0, "pdf_kept": 0, "pdf_bare": 0}
 
     for p in papers:
         pid = clean_text(p["id"]).lower()
@@ -320,16 +377,41 @@ def build(db_path: Path, *, abstracts_mode: str, include_group: bool) -> Dict[st
         if doi and link.lower().rstrip("/") in (f"https://doi.org/{doi}", f"http://doi.org/{doi}", f"https://dx.doi.org/{doi}"):
             link = ""
 
-        keywords = (
-            clean_list(_json(a.get("keywords"), []))
-            or clean_list(_json(p.get("keywords"), []))
-            or clean_list(_json(a.get("recommended_tags"), []))
-        )
-        facets = _json(a.get("facets"), {})
-        try:
-            relevance = int(a.get("relevance_score") or 0)
-        except (TypeError, ValueError):
-            relevance = 0
+        if a and flag_set(a.get(PDF_FLAG)):
+            # Made from a PDF: nothing of it is published. Keep what the last
+            # published snapshot showed (made from the abstract), if anything.
+            stats["from_pdf"] += 1
+            before = prev_index.get(pid)
+            if before is not None:
+                ai = {k: before.get(k) for k in AI_INDEX_FIELDS}
+                note = prev_notes.get(pid)
+                stats["pdf_kept"] += 1
+            else:
+                ai, note = bare_ai_fields(), None
+                stats["pdf_bare"] += 1
+        else:
+            facets = _json(a.get("facets"), {})
+            try:
+                relevance = int(a.get("relevance_score") or 0)
+            except (TypeError, ValueError):
+                relevance = 0
+            ai = {
+                "tp": topics or ["Others"],
+                "kw": (
+                    clean_list(_json(a.get("keywords"), []))
+                    or clean_list(_json(p.get("keywords"), []))
+                    or clean_list(_json(a.get("recommended_tags"), []))
+                ),
+                "rel": relevance,
+                "tk": bilingual(payload.get("one_sentence_takeaway_en"), payload.get("one_sentence_takeaway_zh")),
+                "fc": {
+                    "m": clean_list(facets.get("method")),
+                    "dt": clean_list(facets.get("data_type")),
+                    "tg": clean_list(facets.get("target")),
+                    "r": clean_text(facets.get("paper_role")),
+                },
+            }
+            note = build_analysis(a, include_group) if a else None
 
         entry = {
             "id": pid,
@@ -340,22 +422,17 @@ def build(db_path: Path, *, abstracts_mode: str, include_group: bool) -> Dict[st
             "doi": doi,
             "url": link,
             "src": clean_text(p.get("source")),
-            "tp": topics or ["Others"],
+            "tp": ai["tp"],
             "in": clean_institutions(_json(p.get("institutions"), [])),
-            "kw": keywords,
-            "rel": relevance,
-            "tk": bilingual(payload.get("one_sentence_takeaway_en"), payload.get("one_sentence_takeaway_zh")),
-            "fc": {
-                "m": clean_list(facets.get("method")),
-                "dt": clean_list(facets.get("data_type")),
-                "tg": clean_list(facets.get("target")),
-                "r": clean_text(facets.get("paper_role")),
-            },
+            "kw": ai["kw"],
+            "rel": ai["rel"],
+            "tk": ai["tk"],
+            "fc": ai["fc"],
             "af": flag,  # the text itself goes to abstracts.json
         }
         index.append(entry)
-        if a:
-            shards[pid[0]][pid] = build_analysis(a, include_group)
+        if note is not None:
+            shards[pid[0]][pid] = note
             stats["with_analysis"] += 1
         stats["papers"] += 1
 
@@ -398,6 +475,9 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
                     help="all = full abstracts (default); snippet = first ~200 chars; none = no abstracts")
     ap.add_argument("--include-group-followups", action="store_true",
                     help="also export the AI 'follow-ups for our group' suggestions (off by default)")
+    ap.add_argument("--previous", default="HEAD",
+                    help="git ref of the published snapshot whose AI fields papers analysed from a PDF keep "
+                         "(default HEAD; 'none' for a first export)")
     ap.add_argument("--dry-run", action="store_true", help="build and report sizes, write nothing")
     args = ap.parse_args(list(argv) if argv is not None else None)
 
@@ -407,7 +487,9 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     if not db_path.is_file():
         ap.error("database file not found")
 
-    result = build(db_path, abstracts_mode=args.abstracts, include_group=args.include_group_followups)
+    previous = None if args.previous.lower() == "none" else load_previous(args.previous)
+    result = build(db_path, abstracts_mode=args.abstracts, include_group=args.include_group_followups,
+                   previous=previous)
     out_dir = Path(args.out)
     generated = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
     index_doc = {
@@ -430,6 +512,9 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
           f"abstracts withheld by blocklist: {result['stats']['abstract_blocked']}  "
           f"with AI analysis: {result['stats']['with_analysis']}  "
           f"left out as off-topic: {result['stats']['off_topic']}")
+    print(f"analysed from a PDF (not published): {result['stats']['from_pdf']}  "
+          f"keep the AI fields published before: {result['stats']['pdf_kept']}  "
+          f"metadata and abstract only: {result['stats']['pdf_bare']}")
     print(f"abstract mode: {args.abstracts}  group follow-ups: {'included' if args.include_group_followups else 'excluded'}")
     sizes = {path: len(text.encode("utf-8")) for path, text in files.items()}
     for name in ("papers.json", "abstracts.json"):

@@ -21,8 +21,12 @@ notification appears and the reason goes to the log.
       - the total size may grow by at most 25 %
       - no string may exceed 8,000 characters, so full text cannot slip in
         (the longest abstract is 5,809)
-   8. AI provenance: no analysis may have been made from a PDF, and no source
-      label may be new or mention PDFs or full text
+   8. AI provenance: nothing from an analysis made from a PDF is published.
+      For each such paper the AI fields (topics, keywords, relevance,
+      takeaway, facets) and the AI note must equal the published snapshot's,
+      which were made from the abstract; a paper that was not published
+      before must show metadata and abstract only. No source label may be new
+      or mention PDFs or full text.
    9. tools/check_site.py passes on the local copy (headless Chrome)
   10. tools/privacy_scan.py, run with the app's .env and old.env, prints
       RESULT: CLEAN and has really compared their values. Env files must sit
@@ -95,6 +99,10 @@ PAPER_ID = re.compile(r"^[0-9a-f]{16}$")
 # scans this file too, so a few literals are assembled from pieces.
 BAD_SOURCE = re.compile(r"pdf|full.?text|tdm|bundle|xml|upload", re.I)
 PDF_FLAG_COLUMN = "pdf" + "_used"
+# Index fields that come from the AI analysis (export_lite.AI_INDEX_FIELDS),
+# and what they hold for a paper shown with metadata and abstract only.
+AI_INDEX_FIELDS = ("tp", "kw", "rel", "tk", "fc")
+BARE_AI = {"tp": ["Others"], "kw": [], "rel": 0, "tk": ["", ""], "fc": {"m": [], "dt": [], "tg": [], "r": ""}}
 KEEP_ENV = ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE",
             "SSH_AUTH_SOCK", "TERM", "__CF_USER_TEXT_ENCODING")
 GIT = shutil.which("git") or "/usr/bin/git"
@@ -288,13 +296,43 @@ def wait_for_fetch(db: Path, log: Log) -> dict:
         time.sleep(60)
 
 
-def analyses_from_pdf(db: Path) -> int:
+def papers_from_pdf(db: Path) -> set[str]:
+    """Ids of papers whose stored AI analysis was made from a PDF."""
     con = open_db_readonly(db)
     try:
-        return con.execute(
-            f"SELECT COUNT(*) FROM ai_analyses WHERE COALESCE({PDF_FLAG_COLUMN}, 0) != 0").fetchone()[0]
+        return {str(r[0]).strip().lower() for r in con.execute(
+            f"SELECT paper_id FROM ai_analyses WHERE COALESCE({PDF_FLAG_COLUMN}, 0) != 0")}
     finally:
         con.close()
+
+
+def pdf_made_content(new: dict, old: dict, pdf_ids: set[str]) -> tuple[list[str], int, int]:
+    """Papers in the new export that would show AI content made from a PDF.
+
+    A paper whose analysis was made from a PDF may only repeat what the
+    published snapshot showed for it (made from the abstract), or, if it was
+    not published before, show no AI content at all.
+    Returns (offending ids, papers that keep their published fields, bare papers).
+    """
+    old_index = {p.get("id"): p for p in old["papers.json"].get("papers") or []}
+    new_index = {p.get("id"): p for p in new["papers.json"].get("papers") or []}
+
+    def note(docs: dict, pid: str):
+        return docs.get(f"d/{pid[0]}.json", {}).get(pid)
+
+    bad, kept, bare = [], 0, 0
+    for pid in sorted(pdf_ids & set(new_index)):
+        entry, before = new_index[pid], old_index.get(pid)
+        if before is not None:
+            ok = (all(entry.get(k) == before.get(k) for k in AI_INDEX_FIELDS)
+                  and note(new, pid) == note(old, pid))
+            kept += ok
+        else:
+            ok = all(entry.get(k) == v for k, v in BARE_AI.items()) and note(new, pid) is None
+            bare += ok
+        if not ok:
+            bad.append(pid)
+    return bad, kept, bare
 
 
 def usable_env_files(envs: list[Path], db: Path, log) -> list[Path]:
@@ -523,19 +561,22 @@ def publish(args, log: Log, state: dict, progress: dict) -> str:
 
     # 8. AI provenance
     try:
-        from_pdf = analyses_from_pdf(db)
+        pdf_ids = papers_from_pdf(db)
     except sqlite3.Error as exc:
         raise Stop("provenance", f"cannot check which analyses used a PDF ({type(exc).__name__})") from None
-    if from_pdf:
-        raise Stop("provenance", f"{from_pdf} AI analyses were made from a PDF; the site says none were. "
-                                 "Decide how to handle them before publishing.")
+    leaked, kept, bare = pdf_made_content(new, old, pdf_ids)
+    if leaked:
+        raise Stop("provenance", f"{len(leaked)} paper(s) would show AI content made from a PDF, "
+                                 f"which the site says is never used: {leaked[:3]}")
     labels, known = source_labels(new), source_labels(old)
     bad = sorted(s for s in labels if BAD_SOURCE.search(s))
     if bad:
         raise Stop("provenance", f"source labels that point to full text: {bad[:4]}")
     if not labels <= known:
         raise Stop("provenance", f"new source labels not in the published snapshot: {sorted(labels - known)[:4]}")
-    log(f"[provenance] 0 analyses from PDFs; {len(labels)} source labels, all already published")
+    log(f"[provenance] {len(pdf_ids)} analyses made from a PDF, none of it published: {kept} paper(s) keep "
+        f"their published AI fields, {bare} show metadata and abstract only; "
+        f"{len(labels)} source labels, all already published")
 
     # 9. page check
     run_tool(log, "site", [sys.executable, str(TOOLS / "check_site.py")], timeout=900)
