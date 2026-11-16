@@ -17,7 +17,10 @@ notification appears and the reason goes to the log.
       field paths as the published snapshot (50 on 2026-11-09)
    7. sanity limits:
       - the paper count may drop by at most 1 % (minimum 5) and grow by at
-        most 25 %
+        most 25 %. A published paper that the app now labels off-topic leaves
+        the site on purpose (owner's decision, 2026-11-16) and does not count
+        as a drop, but at most 10 % of the published papers may leave this way
+        in one run, so a run that mislabels much of the library still stops
       - the total size may grow by at most 25 %
       - no string may exceed 8,000 characters, so full text cannot slip in
         (the longest abstract is 5,809)
@@ -91,6 +94,11 @@ DATA_FILES = {"papers.json", "abstracts.json"} | {f"d/{h}.json" for h in "012345
 MAX_STRING_CHARS = 8000
 MAX_DROP_FRACTION, MIN_DROP_ALLOWED = 0.01, 5
 MAX_GROWTH_FRACTION = 0.25
+# The exporter leaves out papers whose topics include the app's "Off-topic /
+# not seismology" label (export_lite.OFF_TOPIC). A later analysis can give a
+# published paper that label; such a paper then leaves the site on purpose.
+OFF_TOPIC = re.compile(r"^\s*off[\s-]?topic\b", re.I)
+MAX_OFF_TOPIC_FRACTION = 0.10
 FETCH_WAIT_SECONDS = 30 * 60
 PAGES_WAIT_SECONDS = 15 * 60
 GC_EVERY_DAYS = 7
@@ -304,6 +312,30 @@ def papers_from_pdf(db: Path) -> set[str]:
             f"SELECT paper_id FROM ai_analyses WHERE COALESCE({PDF_FLAG_COLUMN}, 0) != 0")}
     finally:
         con.close()
+
+
+def now_off_topic(db: Path, ids: set[str]) -> set[str]:
+    """Those of these paper ids that are still in the app database and whose
+    topics now include the off-topic label, which the exporter leaves out."""
+    if not ids:
+        return set()
+    con = open_db_readonly(db)
+    try:
+        rows = con.execute("SELECT id, topics FROM papers").fetchall()
+    finally:
+        con.close()
+    found = set()
+    for pid, topics in rows:
+        pid = str(pid).strip().lower()
+        if pid not in ids:
+            continue
+        try:
+            labels = json.loads(topics) if topics else []
+        except (TypeError, ValueError):
+            continue
+        if isinstance(labels, list) and any(isinstance(t, str) and OFF_TOPIC.match(t) for t in labels):
+            found.add(pid)
+    return found
 
 
 def pdf_made_content(new: dict, old: dict, pdf_ids: set[str]) -> tuple[list[str], int, int]:
@@ -539,9 +571,23 @@ def publish(args, log: Log, state: dict, progress: dict) -> str:
     new_n = len(papers)
     if index.get("count") != new_n or len(set(ids)) != new_n:
         raise Stop("sanity", "papers.json count or ids are inconsistent")
+    # Published papers that the app now labels off-topic leave on purpose and
+    # are not counted as a drop, up to MAX_OFF_TOPIC_FRACTION of the snapshot.
+    gone = {p.get("id") for p in old["papers.json"].get("papers") or []} - set(ids)
+    try:
+        off_topic = now_off_topic(db, gone)
+    except sqlite3.Error as exc:
+        raise Stop("sanity", f"cannot read the topics of the removed papers ({type(exc).__name__})") from None
+    max_off_topic = math.ceil(old_n * MAX_OFF_TOPIC_FRACTION)
+    if len(off_topic) > max_off_topic:
+        raise Stop("sanity", f"{len(off_topic)} published papers are now labelled off-topic "
+                             f"(at most {max_off_topic} may leave in one run)")
+    if off_topic:
+        log(f"[sanity] {len(off_topic)} published paper(s) leave the site: the app now labels them off-topic")
     allowed_drop = max(MIN_DROP_ALLOWED, math.ceil(old_n * MAX_DROP_FRACTION))
-    if new_n < old_n - allowed_drop:
-        raise Stop("sanity", f"paper count fell from {old_n} to {new_n} (allowed drop: {allowed_drop})")
+    if new_n + len(off_topic) < old_n - allowed_drop:
+        raise Stop("sanity", f"paper count fell from {old_n} to {new_n} (allowed drop: {allowed_drop}"
+                             + (f", plus {len(off_topic)} now labelled off-topic)" if off_topic else ")"))
     if new_n > old_n * (1 + MAX_GROWTH_FRACTION):
         raise Stop("sanity", f"paper count jumped from {old_n} to {new_n}")
     old_size, new_size = sum(map(len, old_raw.values())), sum(map(len, new_raw.values()))

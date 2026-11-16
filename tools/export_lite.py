@@ -27,6 +27,8 @@ What it never exports:
     relevance it had in the last published snapshot (read with git from
     --previous, HEAD by default), which were made from the abstract. A paper
     that was never published before shows only its metadata and abstract.
+    If the new analysis labels the paper off-topic, the paper is left out like
+    every off-topic paper (owner's decision, 2026-11-16).
   * PDFs, PDF paths and hashes, retrieval logs, embeddings
   * reading state, notes, takeaways, follow-up flags, projects, chat history
   * the raw AI payload; only display-ready fields are picked from it

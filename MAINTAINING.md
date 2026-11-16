@@ -65,6 +65,8 @@ analysis:
   `--previous` (`HEAD` by default).
 - If the paper has never been on the site, it appears with its metadata and
   abstract only: topic "Others", no keywords, facets or note.
+- If the new analysis labels the paper "Off-topic / not seismology", the paper
+  leaves the site, like every off-topic paper (decided on 2026-11-16).
 
 Pass `--previous none` only for a first export into an empty repository.
 
@@ -76,12 +78,17 @@ The snapshot updates itself once a day. A LaunchAgent on the curator's Mac runs
 - If the Mac is asleep at that time, the job runs when it wakes.
 - If the Mac is switched off, that day is skipped and the next run catches up.
 
+The app fetches only while it is running (every 6 hours), so while it is
+closed there is no new fetch and the site does not change.
+
 A run publishes only if the app has finished a new successful fetch and all of
 these checks pass:
 
 - the export (read-only)
 - the data files and JSON field paths match the live snapshot exactly
-- paper count, total size and string length stay within limits
+- paper count, total size and string length stay within limits. Published
+  papers that the app now labels off-topic do not count as a drop, but at most
+  10 % of the site may leave that way in one run.
 - nothing from an AI analysis made from a PDF is in the export: each such
   paper shows exactly what the live snapshot showed for it, or no AI content
   if it is new; and every source label has been published before
@@ -139,6 +146,7 @@ publish.
 
 - 论文已经在网站上：继续显示上一次发布时的 AI 笔记、一句话要点、主题、关键词、分面和相关度。这些都是根据摘要生成的，导出脚本用 git 从 `--previous`（默认 `HEAD`）读取。
 - 论文从没上过网站：只显示元数据和摘要，主题记为 “Others”，没有关键词、分面和 AI 笔记。
+- 新的分析把论文标为“离题 / 非地震学”：论文从网站上撤下，和其他离题论文一样（2026-11-16 决定）。
 
 只有往空仓库做第一次导出时才用 `--previous none`。每日自动发布还会单独核对一遍：这类论文显示的内容必须和线上快照完全一样，新论文必须不带任何 AI 内容，否则不推送。
 
@@ -148,6 +156,8 @@ publish.
   - Mac 在睡眠：唤醒后补跑。
   - Mac 关机：当天跳过，下一次运行会把内容补上。
 - 推送需要同时满足两个条件：App 有一次新的成功抓取，并且上面列出的检查全部通过。这些检查代替了人工查看改动。
+- 论文数一次最多减少 1%（至少允许 5 篇）。已发布、但 App 现在标为离题的论文不算在内；不过一次最多撤下网站上 10% 的论文，超过就停下。
+- 抓取只在 SeismoHub 主程序开着时进行。主程序关着，就没有新的抓取，网站也就不会更新。
 - 任何一项检查没通过就不推送。系统会弹出通知，原因写进 `$HOME/Library/Logs/SeismoHubLite/auto_publish.log`。
 
 常用操作：
