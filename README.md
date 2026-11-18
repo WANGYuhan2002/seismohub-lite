@@ -49,11 +49,15 @@ switches between English and 中文.
 
 ## About the AI notes
 
-Everything marked “AI” was generated offline with Google Gemini from each
-paper's abstract, public metadata and web search results. No full texts were
-used. The notes can be wrong or incomplete, the authors and publishers have
-not endorsed them, and they do not replace reading the paper. No AI runs on
-this website, and nothing you type is sent anywhere.
+Everything marked “AI” was generated offline with Google Gemini. For most
+papers it was made from the abstract, public metadata and web search results.
+For papers with a verified open-access copy (CC BY or a preprint), it was made
+from that full text. Each paper's AI section says which of the two it is based
+on. The site does not publish the full texts themselves.
+
+The notes can be wrong or incomplete, the authors and publishers have not
+endorsed them, and they do not replace reading the paper. No AI runs on this
+website, and nothing you type is sent anywhere.
 
 ## Where the data comes from
 
@@ -124,7 +128,8 @@ AI 写的简短笔记，大约每天更新一次。
   - 每个搜索、筛选结果和每篇文章都有自己的链接，方便分享。
   - 页面支持手机，跟随系统的深浅色，可以切换中英文。
 - **AI 内容**：
-  - 由 Google Gemini 离线生成，依据摘要、公开元数据和网络检索结果，没有使用全文。
+  - 由 Google Gemini 离线生成。大多数文章依据摘要、公开元数据和网络检索结果；有经过核实的开放获取版本（CC BY 或预印本）的文章，依据的是这份全文。每篇文章的 AI 部分都注明了依据哪一种。
+  - 本站不发布全文本身。
   - 可能有错，未经作者或出版社认可，不能代替阅读原文。
   - 网站本身不运行任何 AI。
 - **数据来源**：Crossref、OpenAlex、arXiv、ETH Research Collection 和出版社 RSS。每次更新都要先通过页面测试和隐私扫描才会上线，没通过就跳过这次更新。

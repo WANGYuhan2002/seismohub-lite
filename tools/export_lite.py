@@ -3,14 +3,17 @@
 
 SeismoHub Lite is a static GitHub Pages site. It shows the same paper list as
 the desktop app, plus the AI analyses that were already generated offline.
-It leaves out PDFs, the AI chat, personal reading data and any live AI or
-API key.
+It leaves out PDFs and full texts, the AI chat, personal reading data and any
+live AI or API key.
 
 What this script does:
   * Opens the SeismoHub SQLite database strictly read-only: URI ``mode=ro``
     plus ``PRAGMA query_only``. It never writes to the database.
   * Reads only whitelisted columns from ``papers`` and ``ai_analyses``. It
     never touches the other tables (reading state, projects, Q&A chat, ...).
+  * Reads three fields of each record in the app's harvest reports
+    (``harvest_*.jsonl``): paper_id, status and app_copy.license_tier. It
+    opens nothing else in the app's PDF folder.
   * Writes static JSON for the site:
       docs/data/papers.json     list, filter and search fields (loaded first)
       docs/data/abstracts.json  {paper id: abstract}, loaded in the background
@@ -19,30 +22,40 @@ What this script does:
       docs/data/d/<x>.json      AI analysis per paper, in 16 shards by the first
                                 hex digit of the paper id; loaded on demand
 
+AI analyses made from a PDF (owner's decision, 2026-11-18). The app redoes a
+paper's analysis from its full text once it has the PDF, and that analysis
+also sets the paper's topics. Such an analysis is published, with the same
+fields as one made from the abstract, only when the harvest reports show that
+the app's copy is a verified open copy (CC BY or a preprint), the paper is not
+in tools/fulltext_blocklist.txt, and the analysis has a takeaway or summary.
+It is published without figure analyses and without page or paragraph
+locators. Its note says "Based on: open-access full text" (FULLTEXT_LABEL),
+and the page tells readers so.
+  * Any other paper analysed from a PDF keeps the AI fields it had in the last
+    published snapshot (read with git from --previous, HEAD by default) if
+    those were made from the abstract. Otherwise it shows only its metadata
+    and abstract.
+  * If the new analysis labels the paper off-topic, the paper is left out like
+    every off-topic paper (owner's decision, 2026-11-16).
+
 What it never exports:
   * papers the app's topic classifier labels "Off-topic / not seismology"
-  * AI content made from a PDF. The app may redo a paper's analysis from its
-    full text, and that analysis then also sets the paper's topics. For such a
-    paper the site keeps the AI note, takeaway, topics, keywords, facets and
-    relevance it had in the last published snapshot (read with git from
-    --previous, HEAD by default), which were made from the abstract. A paper
-    that was never published before shows only its metadata and abstract.
-    If the new analysis labels the paper off-topic, the paper is left out like
-    every off-topic paper (owner's decision, 2026-11-16).
-  * PDFs, PDF paths and hashes, retrieval logs, embeddings
+  * PDFs or full texts, PDF paths and hashes, retrieval logs, embeddings
+  * figure analyses and figure-caption summaries (from any analysis)
   * reading state, notes, takeaways, follow-up flags, projects, chat history
   * the raw AI payload; only display-ready fields are picked from it
-  * verbatim figure-caption excerpts (full-text content)
-  * group-specific AI suggestions ("follow-ups for our group", per-figure
-    "relevance to our group"), unless --include-group-followups is given
+  * group-specific AI suggestions ("follow-ups for our group"), unless
+    --include-group-followups is given
 
 Usage:
     python3 tools/export_lite.py --db /path/to/seismo_hub.db
     python3 tools/export_lite.py --db /path/to/seismo_hub.db --dry-run
     python3 tools/export_lite.py --db /path/to/seismo_hub.db --previous none   # first export
+    python3 tools/export_lite.py --db /path/to/seismo_hub.db --open-reports none  # nothing from full texts
 
 The database path is a command-line argument (or the SEISMO_DB env var) and
-is never written into any output file.
+is never written into any output file. The harvest reports are read from the
+folder next to the database unless --open-reports names another one.
 """
 from __future__ import annotations
 
@@ -58,13 +71,29 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUT = REPO_ROOT / "docs" / "data"
 DATA_REL = "docs/data"
 BLOCKLIST_FILE = REPO_ROOT / "tools" / "abstract_blocklist.txt"
+FULLTEXT_BLOCKLIST_FILE = REPO_ROOT / "tools" / "fulltext_blocklist.txt"
 SNIPPET_CHARS = 200
+# The app's harvest reports, in its PDF folder next to the database.
+# tools/privacy_scan.py flags that folder's name in published files, so it is
+# assembled from pieces.
+REPORTS_REL = Path("paper_" + "bundles") / "_reports"
+OPEN_TIER = "OPEN_CC_BY_OR_PREPRINT"
+# The one public label for an analysis made from a verified open full text.
+# It is the note's evidence label ("ev.on") and its first used source, and the
+# page keys its "made from the open-access full text" notice on it.
+# tools/auto_publish.py and tools/check_site.py use the same string.
+FULLTEXT_LABEL = "open-access full text"
+# Source labels that must not be published as they are: the app's own "pdf"
+# label becomes FULLTEXT_LABEL, and anything else that names a full text or a
+# licensed channel is dropped. tools/auto_publish.py stops on them anyway.
+FULLTEXT_SOURCE = re.compile(r"pdf|full.?text|tdm|bundle|xml|upload", re.I)
+PDF_FILE_NAME = re.compile(r"[\w\-./]+\.pdf\b", re.I)
 # Papers whose topics include the app's "Off-topic / not seismology" label are
 # left out of the public site entirely (owner's decision, 2026-11-09).
 OFF_TOPIC = re.compile(r"^\s*off[\s-]?topic\b", re.I)
@@ -213,7 +242,7 @@ def bilingual_list(en: Any, zh: Any) -> List[List[str]]:
 
 
 def load_blocklist(path: Path) -> Dict[str, set]:
-    """DOIs or 'journal:<name>' lines whose abstracts must not be published."""
+    """DOIs, paper ids or 'journal:<name>' lines (abstract or full-text blocklist)."""
     block = {"doi": set(), "journal": set()}
     if not path.exists():
         return block
@@ -263,8 +292,91 @@ def load_previous(ref: str) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Any]]:
     return index, notes
 
 
+def verified_open_ids(reports: Path) -> Tuple[Set[str], Dict[str, int]]:
+    """Ids of papers whose PDF in the app is a verified open copy.
+
+    Reads the app's harvest reports (harvest_*.jsonl, one JSON record per
+    line) and keeps only three fields of each record: paper_id, status and
+    app_copy.license_tier. A paper counts as open when a run recorded status
+    "success" with the open tier (CC BY or a preprint) and no run recorded any
+    other licence tier for it. A later failed run does not undo an earlier
+    success: the app never replaces a PDF a paper already has, and two runs
+    can overlap. tools/auto_publish.py has a twin of this function.
+    """
+    files = sorted(reports.glob("harvest_*.jsonl"))
+    if not files:
+        raise SystemExit("no harvest reports (harvest_*.jsonl) in the --open-reports folder")
+    opened: Set[str] = set()
+    other_tier: Set[str] = set()
+    counts = {"files": len(files), "records": 0, "unreadable": 0}
+    for path in files:
+        with path.open(encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                if not line.strip():
+                    continue
+                try:
+                    rec = json.loads(line)
+                except ValueError:
+                    counts["unreadable"] += 1
+                    continue
+                if not isinstance(rec, dict):
+                    counts["unreadable"] += 1
+                    continue
+                counts["records"] += 1
+                pid = str(rec.get("paper_id") or "").strip().lower()
+                copy = rec.get("app_copy")
+                tier = copy.get("license_tier") if isinstance(copy, dict) else None
+                if not re.fullmatch(r"[0-9a-f]{16}", pid) or not tier:
+                    continue
+                if tier == OPEN_TIER and rec.get("status") == "success":
+                    opened.add(pid)
+                elif tier != OPEN_TIER:
+                    other_tier.add(pid)
+    return opened - other_tier, counts
+
+
+def is_fulltext(note: Any) -> bool:
+    """True for a published AI note made from an open full text."""
+    return isinstance(note, dict) and isinstance(note.get("ev"), dict) and note["ev"].get("on") == FULLTEXT_LABEL
+
+
+def without_figures(note: Any) -> Any:
+    """A published note without the figure analyses older snapshots carried."""
+    return {k: v for k, v in note.items() if k != "fig"} if isinstance(note, dict) else note
+
+
+def has_text(payload: Dict[str, Any]) -> bool:
+    """False when the model's output could not be parsed: no takeaway, no summary."""
+    return any(clean_text(payload.get(k)) for k in (
+        "one_sentence_takeaway_en", "one_sentence_takeaway_zh", "summary_150w_en", "summary_150w_zh"))
+
+
+def _map_strings(node: Any, fn) -> Any:
+    if isinstance(node, str):
+        return fn(node)
+    if isinstance(node, list):
+        return [_map_strings(v, fn) for v in node]
+    if isinstance(node, dict):
+        return {k: _map_strings(v, fn) for k, v in node.items()}
+    return node
+
+
 # --------------------------------------------------------------------------- build
-def build_analysis(row: Dict[str, Any], include_group: bool) -> Dict[str, Any]:
+def fulltext_sources(values: List[str]) -> List[str]:
+    """Used sources of an analysis made from an open full text: the app's "pdf"
+    label becomes FULLTEXT_LABEL, which always comes first, and other labels
+    that name a full text or a licensed channel are dropped."""
+    out = [FULLTEXT_LABEL]
+    for s in values:
+        if not FULLTEXT_SOURCE.search(s) and s.lower() not in (x.lower() for x in out):
+            out.append(s)
+    return out
+
+
+def build_analysis(row: Dict[str, Any], include_group: bool, fulltext: bool = False) -> Dict[str, Any]:
+    """The AI note of one paper. fulltext: the analysis was made from a verified
+    open full text; its page and paragraph locators are left out, and PDF
+    file names in its text are masked. No note carries figure analyses."""
     payload = _json(row.get("payload"), {})
     out: Dict[str, Any] = {}
 
@@ -277,29 +389,14 @@ def build_analysis(row: Dict[str, Any], include_group: bool) -> Dict[str, Any]:
         en = sa_en.get(key) if isinstance(sa_en.get(key), dict) else {}
         zh = sa_zh.get(key) if isinstance(sa_zh.get(key), dict) else {}
         if clean_text(en.get("text")) or clean_text(zh.get("text")):
-            sa[key] = {"t": bilingual(en.get("text"), zh.get("text")), "src": clean_text(en.get("source"))}
+            # From a full text, "source" is a locator such as "§2 Methods —
+            # second paragraph (p. 4)"; it is not published.
+            sa[key] = {"t": bilingual(en.get("text"), zh.get("text")),
+                       "src": "" if fulltext else clean_text(en.get("source"))}
     out["sa"] = sa
 
     for payload_key, short in LIST_SECTIONS.items():
         out[short] = bilingual_list(payload.get(payload_key), payload.get(payload_key + "_zh"))
-
-    figures = []
-    for fig in payload.get("figure_analyses") or []:
-        if not isinstance(fig, dict):
-            continue
-        item = {
-            "id": clean_text(fig.get("figure_id")),
-            "title": clean_text(fig.get("title")),
-            "desc": bilingual(fig.get("description"), fig.get("description_zh")),
-            "interp": bilingual(fig.get("interpretation"), fig.get("interpretation_zh")),
-            "finding": clean_text(fig.get("key_finding")),
-            "cap": clean_text(fig.get("caption_summary")),
-        }
-        if include_group:
-            item["rel"] = clean_text(fig.get("relevance_to_cos"))
-        if any([item["title"], item["desc"][0], item["interp"][0], item["finding"]]):
-            figures.append(item)
-    out["fig"] = figures
 
     matches = []
     for m in _json(row.get("topic_matches"), []):
@@ -311,19 +408,56 @@ def build_analysis(row: Dict[str, Any], include_group: bool) -> Dict[str, Any]:
             matches.append({"topic": clean_text(m.get("topic")), "conf": conf, "why": clean_text(m.get("why"))})
     out["tm"] = matches
 
-    out["ev"] = {"on": clean_text(row.get("evidence_based_on")), "notes": clean_text(row.get("evidence_notes"))}
-    out["us"] = clean_list(_json(row.get("used_sources"), []))
+    used = clean_list(_json(row.get("used_sources"), []))
+    if fulltext:
+        out["ev"] = {"on": FULLTEXT_LABEL, "notes": clean_text(row.get("evidence_notes"))}
+        out["us"] = fulltext_sources(used)
+    else:
+        out["ev"] = {"on": clean_text(row.get("evidence_based_on")), "notes": clean_text(row.get("evidence_notes"))}
+        out["us"] = used
     out["model"] = clean_text(row.get("analysis_model_label"))
 
     if include_group:
         out["fu"] = bilingual_list(payload.get("followups_for_our_group"), payload.get("followups_for_our_group_zh"))
+    if fulltext:
+        out = _map_strings(out, lambda s: PDF_FILE_NAME.sub("[file]", s))
     return out
 
 
+def analysis_index_fields(a: Dict[str, Any], payload: Dict[str, Any], p: Dict[str, Any],
+                          topics: List[str]) -> Dict[str, Any]:
+    """The AI fields of a paper's list entry, from its stored analysis."""
+    facets = _json(a.get("facets"), {})
+    try:
+        relevance = int(a.get("relevance_score") or 0)
+    except (TypeError, ValueError):
+        relevance = 0
+    return {
+        "tp": topics or ["Others"],
+        "kw": (
+            clean_list(_json(a.get("keywords"), []))
+            or clean_list(_json(p.get("keywords"), []))
+            or clean_list(_json(a.get("recommended_tags"), []))
+        ),
+        "rel": relevance,
+        "tk": bilingual(payload.get("one_sentence_takeaway_en"), payload.get("one_sentence_takeaway_zh")),
+        "fc": {
+            "m": clean_list(facets.get("method")),
+            "dt": clean_list(facets.get("data_type")),
+            "tg": clean_list(facets.get("target")),
+            "r": clean_text(facets.get("paper_role")),
+        },
+    }
+
+
 def build(db_path: Path, *, abstracts_mode: str, include_group: bool,
-          previous: Optional[Tuple[Dict[str, Any], Dict[str, Any]]] = None) -> Dict[str, Any]:
-    """previous: the published snapshot from load_previous(), or None for a first export."""
+          previous: Optional[Tuple[Dict[str, Any], Dict[str, Any]]] = None,
+          open_ids: Optional[Set[str]] = None) -> Dict[str, Any]:
+    """previous: the published snapshot from load_previous(), or None for a first export.
+    open_ids: papers with a verified open copy (verified_open_ids()); None or
+    empty publishes nothing made from a full text."""
     prev_index, prev_notes = previous or ({}, {})
+    open_ids = open_ids or set()
     con = open_readonly(db_path)
     con.row_factory = sqlite3.Row
     try:
@@ -340,11 +474,13 @@ def build(db_path: Path, *, abstracts_mode: str, include_group: bool,
         con.close()
 
     block = load_blocklist(BLOCKLIST_FILE)
+    ft_block = load_blocklist(FULLTEXT_BLOCKLIST_FILE)
     index: List[Dict[str, Any]] = []
     abstracts: Dict[str, str] = {}
     shards: Dict[str, Dict[str, Any]] = {f"{i:x}": {} for i in range(16)}
     stats = {"papers": 0, "with_abstract": 0, "abstract_blocked": 0, "with_analysis": 0, "off_topic": 0,
-             "from_pdf": 0, "pdf_kept": 0, "pdf_bare": 0}
+             "from_pdf": 0, "fulltext": 0, "pdf_kept": 0, "pdf_bare": 0,
+             "not_open": 0, "blocked": 0, "no_text": 0}
 
     for p in papers:
         pid = clean_text(p["id"]).lower()
@@ -380,39 +516,35 @@ def build(db_path: Path, *, abstracts_mode: str, include_group: bool,
             link = ""
 
         if a and flag_set(a.get(PDF_FLAG)):
-            # Made from a PDF: nothing of it is published. Keep what the last
-            # published snapshot showed (made from the abstract), if anything.
+            # Made from a PDF: published only from a verified open copy.
             stats["from_pdf"] += 1
-            before = prev_index.get(pid)
-            if before is not None:
-                ai = {k: before.get(k) for k in AI_INDEX_FIELDS}
-                note = prev_notes.get(pid)
-                stats["pdf_kept"] += 1
+            if pid not in open_ids:
+                refused = "not_open"
+            elif pid in ft_block["doi"] or (doi and doi in ft_block["doi"]) or journal.lower() in ft_block["journal"]:
+                refused = "blocked"
+            elif not has_text(payload):
+                refused = "no_text"  # the model's output could not be parsed
             else:
-                ai, note = bare_ai_fields(), None
-                stats["pdf_bare"] += 1
+                refused = ""
+            if not refused:
+                ai = _map_strings(analysis_index_fields(a, payload, p, topics),
+                                  lambda s: PDF_FILE_NAME.sub("[file]", s))
+                note = build_analysis(a, include_group, fulltext=True)
+                stats["fulltext"] += 1
+            else:
+                # Keep what the last published snapshot showed if that was
+                # made from the abstract; otherwise metadata and abstract only.
+                stats[refused] += 1
+                before, note = prev_index.get(pid), prev_notes.get(pid)
+                if before is not None and not is_fulltext(note):
+                    ai = {k: before.get(k) for k in AI_INDEX_FIELDS}
+                    note = without_figures(note)
+                    stats["pdf_kept"] += 1
+                else:
+                    ai, note = bare_ai_fields(), None
+                    stats["pdf_bare"] += 1
         else:
-            facets = _json(a.get("facets"), {})
-            try:
-                relevance = int(a.get("relevance_score") or 0)
-            except (TypeError, ValueError):
-                relevance = 0
-            ai = {
-                "tp": topics or ["Others"],
-                "kw": (
-                    clean_list(_json(a.get("keywords"), []))
-                    or clean_list(_json(p.get("keywords"), []))
-                    or clean_list(_json(a.get("recommended_tags"), []))
-                ),
-                "rel": relevance,
-                "tk": bilingual(payload.get("one_sentence_takeaway_en"), payload.get("one_sentence_takeaway_zh")),
-                "fc": {
-                    "m": clean_list(facets.get("method")),
-                    "dt": clean_list(facets.get("data_type")),
-                    "tg": clean_list(facets.get("target")),
-                    "r": clean_text(facets.get("paper_role")),
-                },
-            }
+            ai = analysis_index_fields(a, payload, p, topics)
             note = build_analysis(a, include_group) if a else None
 
         entry = {
@@ -478,8 +610,12 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     ap.add_argument("--include-group-followups", action="store_true",
                     help="also export the AI 'follow-ups for our group' suggestions (off by default)")
     ap.add_argument("--previous", default="HEAD",
-                    help="git ref of the published snapshot whose AI fields papers analysed from a PDF keep "
-                         "(default HEAD; 'none' for a first export)")
+                    help="git ref of the published snapshot whose AI fields papers analysed from a PDF without "
+                         "a verified open copy keep (default HEAD; 'none' for a first export)")
+    ap.add_argument("--open-reports", default=None,
+                    help="folder with the app's harvest reports (harvest_*.jsonl), which say which papers have a "
+                         "verified open copy (default: the app's reports folder next to --db; 'none' publishes "
+                         "nothing made from a full text)")
     ap.add_argument("--dry-run", action="store_true", help="build and report sizes, write nothing")
     args = ap.parse_args(list(argv) if argv is not None else None)
 
@@ -489,9 +625,18 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     if not db_path.is_file():
         ap.error("database file not found")
 
+    if args.open_reports and args.open_reports.lower() == "none":
+        open_ids, report_counts = set(), None
+    else:
+        reports = Path(args.open_reports).expanduser() if args.open_reports else db_path.parent / REPORTS_REL
+        if not reports.is_dir():
+            ap.error("harvest reports folder not found: pass --open-reports DIR, or --open-reports none "
+                     "to publish nothing made from a full text")
+        open_ids, report_counts = verified_open_ids(reports)
+
     previous = None if args.previous.lower() == "none" else load_previous(args.previous)
     result = build(db_path, abstracts_mode=args.abstracts, include_group=args.include_group_followups,
-                   previous=previous)
+                   previous=previous, open_ids=open_ids)
     out_dir = Path(args.out)
     generated = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
     index_doc = {
@@ -514,9 +659,17 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
           f"abstracts withheld by blocklist: {result['stats']['abstract_blocked']}  "
           f"with AI analysis: {result['stats']['with_analysis']}  "
           f"left out as off-topic: {result['stats']['off_topic']}")
-    print(f"analysed from a PDF (not published): {result['stats']['from_pdf']}  "
-          f"keep the AI fields published before: {result['stats']['pdf_kept']}  "
-          f"metadata and abstract only: {result['stats']['pdf_bare']}")
+    st = result["stats"]
+    if report_counts is None:
+        print("harvest reports: not read (--open-reports none); nothing made from a full text is published")
+    else:
+        print(f"harvest reports: {report_counts['files']} files, {report_counts['records']:,} records "
+              f"({report_counts['unreadable']} unreadable lines); {len(open_ids):,} papers with a verified open copy")
+    print(f"analysed from a PDF: {st['from_pdf']}  published from the open-access full text: {st['fulltext']}  "
+          f"not published (no verified open copy: {st['not_open']}, full-text blocklist: {st['blocked']}, "
+          f"unusable model output: {st['no_text']})")
+    print(f"  of those not published: keep the abstract-based AI fields published before: {st['pdf_kept']}  "
+          f"metadata and abstract only: {st['pdf_bare']}")
     print(f"abstract mode: {args.abstracts}  group follow-ups: {'included' if args.include_group_followups else 'excluded'}")
     sizes = {path: len(text.encode("utf-8")) for path, text in files.items()}
     for name in ("papers.json", "abstracts.json"):

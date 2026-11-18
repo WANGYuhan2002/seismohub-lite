@@ -24,12 +24,19 @@ notification appears and the reason goes to the log.
       - the total size may grow by at most 25 %
       - no string may exceed 8,000 characters, so full text cannot slip in
         (the longest abstract is 5,809)
-   8. AI provenance: nothing from an analysis made from a PDF is published.
-      For each such paper the AI fields (topics, keywords, relevance,
-      takeaway, facets) and the AI note must equal the published snapshot's,
-      which were made from the abstract; a paper that was not published
-      before must show metadata and abstract only. No source label may be new
-      or mention PDFs or full text.
+   8. AI provenance (owner's decision, 2026-11-18): an analysis made from a
+      PDF is published only for a paper whose copy the app's harvest reports
+      show as a verified open copy (CC BY or a preprint) and that is not in
+      tools/fulltext_blocklist.txt. Its note must carry the one public label
+      "open-access full text" (also first among its used sources), no figure
+      analyses and no page or paragraph locators. No other note may name that
+      label, and no note may carry figure analyses. Every other paper analysed
+      from a PDF must show exactly the abstract-based AI fields (topics,
+      keywords, relevance, takeaway, facets) and AI note of the published
+      snapshot, or metadata and abstract only. At most 10 % of the papers
+      shown from their full text (minimum 5) may lose that in one run. No
+      source label may be new or name PDFs, full texts, TDM, bundles, XML or
+      uploads, except that one label.
    9. tools/check_site.py passes on the local copy (headless Chrome)
   10. tools/privacy_scan.py, run with the app's .env and old.env, prints
       RESULT: CLEAN and has really compared their values. Env files must sit
@@ -103,10 +110,21 @@ FETCH_WAIT_SECONDS = 30 * 60
 PAGES_WAIT_SECONDS = 15 * 60
 GC_EVERY_DAYS = 7
 PAPER_ID = re.compile(r"^[0-9a-f]{16}$")
-# Source labels that would mean full text was used. tools/privacy_scan.py
-# scans this file too, so a few literals are assembled from pieces.
+# Source labels that would mean full text or a licensed channel was used.
+# tools/privacy_scan.py scans this file too, so a few literals are assembled
+# from pieces.
 BAD_SOURCE = re.compile(r"pdf|full.?text|tdm|bundle|xml|upload", re.I)
 PDF_FLAG_COLUMN = "pdf" + "_used"
+# The one public label of an AI note made from a verified open full text
+# (export_lite.FULLTEXT_LABEL): its evidence ("ev.on") and first used source.
+FULLTEXT_LABEL = "open-access full text"
+FULLTEXT_LABELS = {"evidence:" + FULLTEXT_LABEL, "source:" + FULLTEXT_LABEL}
+# The app's harvest reports, in its PDF folder next to the database
+# (export_lite.REPORTS_REL), and the licence tier of a verified open copy.
+REPORTS_REL = Path("paper_" + "bundles") / "_reports"
+OPEN_TIER = "OPEN_CC_BY_OR_PREPRINT"
+FULLTEXT_BLOCKLIST = TOOLS / "fulltext_blocklist.txt"
+MAX_FULLTEXT_LOSS_FRACTION, MIN_FULLTEXT_LOSS_ALLOWED = 0.10, 5
 # Index fields that come from the AI analysis (export_lite.AI_INDEX_FIELDS),
 # and what they hold for a paper shown with metadata and abstract only.
 AI_INDEX_FIELDS = ("tp", "kw", "rel", "tk", "fc")
@@ -338,33 +356,125 @@ def now_off_topic(db: Path, ids: set[str]) -> set[str]:
     return found
 
 
-def pdf_made_content(new: dict, old: dict, pdf_ids: set[str]) -> tuple[list[str], int, int]:
-    """Papers in the new export that would show AI content made from a PDF.
+def verified_open_ids(reports: Path) -> tuple[set[str], int]:
+    """Twin of export_lite.verified_open_ids(): papers whose PDF in the app is
+    a verified open copy, from three fields of each harvest-report record
+    (paper_id, status, app_copy.license_tier). Returns (ids, report files)."""
+    files = sorted(reports.glob("harvest_*.jsonl"))
+    opened: set[str] = set()
+    other_tier: set[str] = set()
+    for path in files:
+        with path.open(encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                try:
+                    rec = json.loads(line)
+                except ValueError:
+                    continue
+                if not isinstance(rec, dict):
+                    continue
+                pid = str(rec.get("paper_id") or "").strip().lower()
+                copy = rec.get("app_copy")
+                tier = copy.get("license_tier") if isinstance(copy, dict) else None
+                if not PAPER_ID.match(pid) or not tier:
+                    continue
+                if tier == OPEN_TIER and rec.get("status") == "success":
+                    opened.add(pid)
+                elif tier != OPEN_TIER:
+                    other_tier.add(pid)
+    return opened - other_tier, len(files)
 
-    A paper whose analysis was made from a PDF may only repeat what the
-    published snapshot showed for it (made from the abstract), or, if it was
-    not published before, show no AI content at all.
-    Returns (offending ids, papers that keep their published fields, bare papers).
+
+def load_fulltext_blocklist(path: Path) -> tuple[set[str], set[str]]:
+    """(DOIs and paper ids, journal names), lower case; twin of export_lite.load_blocklist()."""
+    ids, journals = set(), set()
+    if path.exists():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.split("#", 1)[0].strip()
+            if line.lower().startswith("journal:"):
+                journals.add(line.split(":", 1)[1].strip().lower())
+            elif line:
+                d = line.lower()
+                for prefix in ("https://doi.org/", "http://doi.org/", "https://dx.doi.org/", "doi:"):
+                    if d.startswith(prefix):
+                        d = d[len(prefix):]
+                ids.add(d)
+    return ids, journals
+
+
+def is_fulltext(note) -> bool:
+    return isinstance(note, dict) and isinstance(note.get("ev"), dict) and note["ev"].get("on") == FULLTEXT_LABEL
+
+
+def without_figures(note):
+    """Snapshots before 2026-11-18 carried figure analyses; the exporter now drops them."""
+    return {k: v for k, v in note.items() if k != "fig"} if isinstance(note, dict) else note
+
+
+def pdf_made_content(new: dict, old: dict, pdf_ids: set[str], open_ids: set[str],
+                     block: tuple[set[str], set[str]]) -> tuple[list[str], dict]:
+    """Where the new export shows AI content made from a PDF, and whether it may.
+
+    - A note labelled "open-access full text" is allowed only for a paper
+      analysed from a PDF, with a verified open copy, not on the full-text
+      blocklist; the label must also be its first used source, and it must
+      have no page or paragraph locators.
+    - No note may carry figure analyses, and no other note may name the label.
+    - Any other paper analysed from a PDF may only repeat the abstract-based AI
+      content of the published snapshot, or show no AI content at all.
+    Returns (problems as "id: reason", counts of fulltext / kept / bare papers).
     """
     old_index = {p.get("id"): p for p in old["papers.json"].get("papers") or []}
     new_index = {p.get("id"): p for p in new["papers.json"].get("papers") or []}
+    block_ids, block_journals = block
 
     def note(docs: dict, pid: str):
         return docs.get(f"d/{pid[0]}.json", {}).get(pid)
 
-    bad, kept, bare = [], 0, 0
-    for pid in sorted(pdf_ids & set(new_index)):
-        entry, before = new_index[pid], old_index.get(pid)
-        if before is not None:
-            ok = (all(entry.get(k) == before.get(k) for k in AI_INDEX_FIELDS)
-                  and note(new, pid) == note(old, pid))
-            kept += ok
-        else:
-            ok = all(entry.get(k) == v for k, v in BARE_AI.items()) and note(new, pid) is None
-            bare += ok
-        if not ok:
-            bad.append(pid)
-    return bad, kept, bare
+    problems: list[str] = []
+    counts = {"fulltext": 0, "kept": 0, "bare": 0}
+    for pid in sorted(new_index):
+        entry, n = new_index[pid], note(new, pid)
+        if isinstance(n, dict) and "fig" in n:
+            problems.append(f"{pid}: figure analyses")
+        elif is_fulltext(n):
+            doi = str(entry.get("doi") or "").lower()
+            if pid not in pdf_ids:
+                problems.append(f"{pid}: labelled as made from a full text, but not analysed from a PDF")
+            elif pid not in open_ids:
+                problems.append(f"{pid}: made from a PDF that is not a verified open copy")
+            elif pid in block_ids or (doi and doi in block_ids) or str(entry.get("j") or "").lower() in block_journals:
+                problems.append(f"{pid}: on the full-text blocklist")
+            elif (n.get("us") or [None])[0] != FULLTEXT_LABEL:
+                problems.append(f"{pid}: the full-text label is not its first used source")
+            elif any(isinstance(v, dict) and v.get("src") for v in (n.get("sa") or {}).values()):
+                problems.append(f"{pid}: page or paragraph locators")
+            else:
+                counts["fulltext"] += 1
+        elif isinstance(n, dict) and FULLTEXT_LABEL in (n.get("us") or []):
+            problems.append(f"{pid}: names the full-text label without being labelled so")
+        elif pid in pdf_ids:
+            before, old_note = old_index.get(pid), note(old, pid)
+            if before is not None and not is_fulltext(old_note):
+                ok = (all(entry.get(k) == before.get(k) for k in AI_INDEX_FIELDS)
+                      and n == without_figures(old_note))
+                kind = "kept"
+            else:
+                ok = all(entry.get(k) == v for k, v in BARE_AI.items()) and n is None
+                kind = "bare"
+            if ok:
+                counts[kind] += 1
+            else:
+                problems.append(f"{pid}: AI content made from a PDF that is not a verified open copy")
+    return problems, counts
+
+
+def fulltext_lost(new: dict, old: dict) -> set[str]:
+    """Papers shown from their full text in the published snapshot that are
+    still listed but no longer shown from their full text."""
+    def marked(docs: dict) -> set[str]:
+        return {pid for rel, shard in docs.items() if rel.startswith("d/") for pid, n in shard.items() if is_fulltext(n)}
+    listed = {p.get("id") for p in new["papers.json"].get("papers") or []}
+    return (marked(old) - marked(new)) & listed
 
 
 def usable_env_files(envs: list[Path], db: Path, log) -> list[Path]:
@@ -610,19 +720,34 @@ def publish(args, log: Log, state: dict, progress: dict) -> str:
         pdf_ids = papers_from_pdf(db)
     except sqlite3.Error as exc:
         raise Stop("provenance", f"cannot check which analyses used a PDF ({type(exc).__name__})") from None
-    leaked, kept, bare = pdf_made_content(new, old, pdf_ids)
-    if leaked:
-        raise Stop("provenance", f"{len(leaked)} paper(s) would show AI content made from a PDF, "
-                                 f"which the site says is never used: {leaked[:3]}")
+    try:
+        open_ids, n_reports = verified_open_ids(db.parent / REPORTS_REL)
+    except OSError as exc:
+        raise Stop("provenance", f"cannot read the app's harvest reports ({type(exc).__name__})") from None
+    if not n_reports:
+        raise Stop("provenance", "no harvest reports next to the database, so no copy can be verified as open")
+    problems, counts = pdf_made_content(new, old, pdf_ids, open_ids, load_fulltext_blocklist(FULLTEXT_BLOCKLIST))
+    if problems:
+        raise Stop("provenance", f"{len(problems)} paper(s) would show AI content made from a PDF that may "
+                                 f"not be published: {problems[:3]}")
+    lost = fulltext_lost(new, old)
+    was_fulltext = len(lost) + counts["fulltext"]
+    max_lost = max(MIN_FULLTEXT_LOSS_ALLOWED, math.ceil(was_fulltext * MAX_FULLTEXT_LOSS_FRACTION))
+    if len(lost) > max_lost:
+        raise Stop("provenance", f"{len(lost)} papers would no longer be shown from their open full text "
+                                 f"(at most {max_lost} in one run): were harvest reports removed?")
     labels, known = source_labels(new), source_labels(old)
-    bad = sorted(s for s in labels if BAD_SOURCE.search(s))
+    bad = sorted(s for s in labels - FULLTEXT_LABELS if BAD_SOURCE.search(s))
     if bad:
         raise Stop("provenance", f"source labels that point to full text: {bad[:4]}")
-    if not labels <= known:
-        raise Stop("provenance", f"new source labels not in the published snapshot: {sorted(labels - known)[:4]}")
-    log(f"[provenance] {len(pdf_ids)} analyses made from a PDF, none of it published: {kept} paper(s) keep "
-        f"their published AI fields, {bare} show metadata and abstract only; "
-        f"{len(labels)} source labels, all already published")
+    if not labels <= known | FULLTEXT_LABELS:
+        raise Stop("provenance", f"new source labels not in the published snapshot: "
+                                 f"{sorted(labels - known - FULLTEXT_LABELS)[:4]}")
+    log(f"[provenance] {len(pdf_ids)} analyses made from a PDF ({n_reports} harvest reports, "
+        f"{len(open_ids)} papers with a verified open copy): {counts['fulltext']} paper(s) shown from their "
+        f"open full text, {counts['kept']} keep their abstract-based AI fields, {counts['bare']} show metadata "
+        f"and abstract only" + (f", {len(lost)} no longer from their full text" if lost else "")
+        + f"; {len(labels)} source labels, all published before or the full-text label")
 
     # 9. page check
     run_tool(log, "site", [sys.executable, str(TOOLS / "check_site.py")], timeout=900)

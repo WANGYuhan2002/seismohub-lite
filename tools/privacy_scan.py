@@ -14,7 +14,12 @@ Blocking checks:
   * PDF material: .pdf files or references, PDF storage folder names, PDF fields
   * personal data: reading-state, notes, takeaway, project, chat and
     retrieval field names
-  * data shape: JSON keys must match the exporter's whitelist exactly
+  * data shape: JSON keys must match the exporter's whitelist exactly; no AI
+    note may carry figure analyses
+  * full-text provenance: an AI note's evidence and source labels may name a
+    full text only as the one public label "open-access full text", never a
+    PDF, TDM, bundle, XML or upload; a note made from the open full text has
+    no page or paragraph locators
   * group-specific AI suggestions, unless --allow-group-followups
   * files: unexpected file types, binaries, oversized files
   * git: the commit identity must be a GitHub noreply address
@@ -97,8 +102,13 @@ INDEX_PAPER = {"id", "t", "a", "j", "d", "doi", "url", "src", "tp", "in", "kw", 
 # look like full text, which must never be published.
 MAX_TEXT_CHARS = 15000
 INDEX_FACETS = {"m", "dt", "tg", "r"}
-SHARD_ENTRY = {"sum", "sa", "kc", "me", "de", "li", "fig", "tm", "ev", "us", "model"}
-FIG_ITEM = {"id", "title", "desc", "interp", "finding", "cap"}
+# No "fig": figure analyses are never published (owner's decision, 2026-11-18).
+SHARD_ENTRY = {"sum", "sa", "kc", "me", "de", "li", "tm", "ev", "us", "model"}
+# The one public label of an AI note made from a verified open full text
+# (export_lite.FULLTEXT_LABEL), and labels that would name a full text or a
+# licensed channel in any other way (auto_publish.BAD_SOURCE).
+FULLTEXT_LABEL = "open-access full text"
+FULLTEXT_SOURCE = re.compile(r"pdf|full.?text|tdm|bundle|xml|upload", re.I)
 
 
 class Report:
@@ -230,20 +240,33 @@ def check_json_shape(path: Path, rel: str, rep: Report, allow_group: bool):
         rep.info.append(f"{rel}: {len(data.get('papers', []))} papers, keys = whitelist")
     elif path.parent.name == "d":
         allowed = SHARD_ENTRY | ({"fu"} if allow_group else set())
-        fig_allowed = FIG_ITEM | ({"rel"} if allow_group else set())
+        fulltext = 0
         for pid, entry in data.items():
             if not re.fullmatch(r"[0-9a-f]{16}", pid):
                 rep.hit("unexpected shard id", rel, pid[:20])
                 break
             extra = set(entry) - allowed
             if extra:
-                kind = "group follow-ups present" if "fu" in extra else "unexpected analysis keys"
+                kind = ("group follow-ups present" if "fu" in extra
+                        else "figure analyses present" if "fig" in extra else "unexpected analysis keys")
                 rep.hit(kind, rel, ", ".join(sorted(extra)))
                 break
-            bad_fig = [k for f in entry.get("fig", []) for k in f if k not in fig_allowed]
-            if bad_fig:
-                rep.hit("unexpected figure keys", rel, ", ".join(sorted(set(bad_fig))))
+            ev = entry.get("ev") if isinstance(entry.get("ev"), dict) else {}
+            labels = [str(ev.get("on") or "")] + [str(s) for s in entry.get("us") or []]
+            bad = [s for s in labels if s != FULLTEXT_LABEL and FULLTEXT_SOURCE.search(s)]
+            if bad:
+                rep.hit("full-text source label", rel, f"{pid}: {bad[0][:40]}")
                 break
+            if ev.get("on") == FULLTEXT_LABEL:
+                fulltext += 1
+                sa = entry.get("sa") if isinstance(entry.get("sa"), dict) else {}
+                if any(isinstance(v, dict) and v.get("src") for v in sa.values()):
+                    rep.hit("page locators in a note made from a full text", rel, pid)
+                    break
+            elif FULLTEXT_LABEL in labels:
+                rep.hit("full-text label on a note not made from a full text", rel, pid)
+                break
+        rep.info.append(f"{rel}: {len(data)} AI notes, {fulltext} made from an open-access full text")
 
 
 def main() -> int:

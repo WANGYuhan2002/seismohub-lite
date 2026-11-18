@@ -41,7 +41,14 @@ Checks:
     and its three column headings sort it A–Z, Z–A, or back to the list's
     order, without moving the cards; each card has the abstract & AI
     analysis button (sparkles + italic "AI") and its DOI at the top right,
-    and the card title opens the paper's DOI (else its link) in a new tab.
+    and the card title opens the paper's DOI (else its link) in a new tab;
+  * the owner's 2026-11-18 decision holds: each paper's AI section says
+    whether it was made from the open-access full text (notes labelled
+    "open-access full text") or from the abstract and public metadata, in
+    English and Chinese, and keeps the "not endorsed; check the original"
+    disclaimer; a note made from the full text shows no page locators; no
+    dialog has a figure section; the About dialog and the footer explain
+    the two sources and no longer say that no full text was used.
 
 Usage:
     python3 tools/check_site.py [--shots DIR] [--base https://…/seismohub-lite]
@@ -67,6 +74,21 @@ from urllib.parse import quote, urlencode, urlparse
 
 DOCS = Path(__file__).resolve().parent.parent / "docs"
 CJK = re.compile(r"[一-鿿]")
+# The evidence label of an AI note made from a verified open full text
+# (export_lite.FULLTEXT_LABEL); every other note was made from the abstract.
+FULLTEXT_LABEL = "open-access full text"
+
+# The open dialog's AI notice and evidence: [its data-basis, notice text,
+# evidence section text, figure cards, section headings, "Source:" locators shown].
+BASIS_JS = """(() => {
+  const n = document.querySelector('#detail .notice.ai');
+  const secs = [...document.querySelectorAll('#detail .sec')];
+  const head = s => ((s.querySelector('h3') || {}).textContent || '').trim();
+  const ev = secs.find(s => /^(evidence|分析依据)$/i.test(head(s)));
+  return [n ? (n.dataset.basis || null) : null, n ? n.textContent : '', ev ? ev.textContent : '',
+    document.querySelectorAll('#detail .fig').length, secs.map(head),
+    document.querySelectorAll('#detail .pill small').length];
+})()"""
 
 # Card style (owner's request, 2026-11-09), measured on every rendered card.
 # For each card: [paper id, title px, journal weight, keyword chips, keyword
@@ -254,7 +276,7 @@ def main() -> int:
     if shots:
         shots.mkdir(parents=True, exist_ok=True)
 
-    from playwright.sync_api import sync_playwright
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout, sync_playwright
 
     if args.base:
         srv, base = None, args.base.rstrip("/")
@@ -306,6 +328,21 @@ def main() -> int:
     months = collections.Counter(p["d"][:7] for p in index["papers"] if len(p["d"]) >= 7)
     journal_counts = collections.Counter(p["j"] or "Others" for p in index["papers"])
     abstracts = json.loads((DOCS / "data" / "abstracts.json").read_text(encoding="utf-8"))
+    # AI notes, to pick one paper analysed from its open-access full text and
+    # one analysed from its abstract (newest first, each with a takeaway)
+    ai_notes = {}
+    for h in "0123456789abcdef":
+        ai_notes.update(json.loads((DOCS / "data" / "d" / f"{h}.json").read_text(encoding="utf-8")))
+
+    def made_from_fulltext(n) -> bool:
+        return isinstance(n, dict) and (n.get("ev") or {}).get("on") == FULLTEXT_LABEL
+
+    basis_papers = {}
+    for p in index["papers"]:
+        n = ai_notes.get(p["id"])
+        if isinstance(n, dict) and any(p["tk"]):
+            basis_papers.setdefault(made_from_fulltext(n), p["id"])
+    n_fulltext = sum(1 for n in ai_notes.values() if made_from_fulltext(n))
 
     def dkey(p):
         d = p["d"] or ""
@@ -584,7 +621,13 @@ def main() -> int:
                 for _ in range(80):
                     if page.locator("#more").is_hidden():
                         break
-                    page.locator("#more").click()
+                    # Scrolling the button into view can let the page's infinite
+                    # scroll load the last batch first, which hides the button;
+                    # then there is nothing left to click, so look again.
+                    try:
+                        page.locator("#more").click(timeout=3000)
+                    except PlaywrightTimeout:
+                        pass
                     page.wait_for_timeout(60)
                 win30 = [p["id"] for p in index["papers"] if len(p["d"]) == 10 and (ref_day - dt.date.fromisoformat(p["d"])).days < 30]
                 check_if_order(page.evaluate(CARD_IDS_JS), "last 30 days, every card", win30)
@@ -840,6 +883,34 @@ def main() -> int:
             page.keyboard.press("Escape")
             page.wait_for_timeout(300)
 
+            # each paper says what its AI content was made from (owner, 2026-11-18)
+            notes.append(f"info {n_fulltext:,} of {len(ai_notes):,} AI notes were made from an open-access full text")
+            for ft, pid in sorted(basis_papers.items(), reverse=True):
+                kind = "open-access full text" if ft else "abstract"
+                page.goto(base + "/#p=" + pid)
+                page.wait_for_selector("#detail[open] .notice.ai", timeout=15000)
+                basis, banner, evid, figs, heads, locators = page.evaluate(BASIS_JS)
+                want = "from the open-access full text of the paper" if ft else "from the abstract and public metadata"
+                check(basis == ("fulltext" if ft else "abstract") and want in banner
+                      and "not endorsed" in banner and "check the original article" in banner,
+                      f"a paper analysed from its {kind} says so above its AI content, with the disclaimer ({pid}: {banner[:90]!r}…)")
+                check(figs == 0 and not any(x in ("Figures", "图表解析") for x in heads), f"{kind}: the dialog has no figure section")
+                if ft:
+                    check(FULLTEXT_LABEL in evid and locators == 0,
+                          f"full text: the evidence says {FULLTEXT_LABEL!r}, and no page locators are shown ({locators})")
+                    page.evaluate("document.getElementById('langBtn').click()")
+                    page.wait_for_timeout(400)
+                    basis, banner, evid, *_ = page.evaluate(BASIS_JS)
+                    check(basis == "fulltext" and "开放获取全文" in banner and "请以原文为准" in banner and "开放获取全文" in evid,
+                          f"full text, in Chinese: the notice says 开放获取全文 and keeps the disclaimer ({banner[:40]!r}…)")
+                    page.evaluate("document.getElementById('langBtn').click()")
+                    page.wait_for_timeout(300)
+                page.keyboard.press("Escape")
+                page.wait_for_timeout(300)
+            if len(basis_papers) < 2:
+                notes.append(f"info only notes made from the {'full text' if True in basis_papers else 'abstract'} "
+                             "were found; skipped the other source's notice check")
+
             # the paper with the most authors: 40 with icons, then "show all" adds the rest
             many = max(index["papers"], key=lambda p: len(p["a"]))
             if len(many["a"]) > 40:
@@ -863,10 +934,30 @@ def main() -> int:
             page.wait_for_timeout(400)
             check(page.locator("#detail[open]").count() == 0 and "topic=" in page.url, "topic chip in dialog filters the list")
 
-            # about dialog
+            # about dialog, and the footer: which sources the AI content was made from (owner, 2026-11-18)
             page.locator("#aboutBtn").click()
             check(page.locator("#about[open]", has_text="Copyright and takedown").count() == 1, "about dialog shows copyright notice")
+            about = squash(page.locator("#about").inner_text())
+            check("verified open-access copy" in about and "it was made from that full text" in about
+                  and "abstract, public metadata and web search results" in about and "not endorsed" in about
+                  and "no full-text PDFs were used" not in about and "figure notes" not in about,
+                  "About explains both sources of the AI content and keeps the disclaimer")
             page.keyboard.press("Escape")
+            page.wait_for_timeout(200)
+            foot = squash(page.locator("#foot").inner_text())
+            check("from the full text; each paper says which" in foot, "the footer says AI content may come from the full text, per paper")
+            page.evaluate("document.getElementById('langBtn').click()")
+            page.wait_for_timeout(300)
+            page.locator("#aboutBtn").click()
+            about = squash(page.locator("#about").inner_text())
+            check("开放获取版本" in about and "依据的是这份全文" in about and "未经作者或出版社认可" in about
+                  and "没有使用全文" not in about and "图表解析" not in about,
+                  "About in Chinese explains both sources and keeps the disclaimer")
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(200)
+            check("每篇文章都注明了依据" in squash(page.locator("#foot").inner_text()), "the Chinese footer says each paper names its source")
+            page.evaluate("document.getElementById('langBtn').click()")
+            page.wait_for_timeout(300)
 
             # abstracts.json unavailable: the list still works and says so
             p2 = ctx.new_page()

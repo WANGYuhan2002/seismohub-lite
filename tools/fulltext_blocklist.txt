@@ -1,0 +1,12 @@
+# Papers listed here get no AI content made from their full text, even when
+# the app's copy is a verified open copy. They show the abstract-based AI
+# content published before, if there was any, or metadata and abstract only.
+# Use this for takedown requests about AI notes made from a full text.
+#
+# One entry per line:
+#   10.1234/example.doi          -> this DOI
+#   0123456789abcdef             -> this paper id (as in the site's #p= links)
+#   journal:Tectonophysics       -> every paper from this journal
+# Lines starting with # are comments.
+#
+# After editing, re-run tools/export_lite.py, then the checks, then publish.

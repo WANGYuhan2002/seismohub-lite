@@ -17,6 +17,7 @@ this. [README.md](README.md) explains what the site is.
 | `tools/update.py` | Runs export, check and scan in one go, then shows the diff. Never pushes. |
 | `tools/auto_publish.py` | Daily automatic publish, run by a LaunchAgent. Pushes only if every check passes. |
 | `tools/abstract_blocklist.txt` | Abstracts to withhold, for takedown requests |
+| `tools/fulltext_blocklist.txt` | Papers that get no AI content made from their full text, for takedown requests |
 | `tools/privacy_allowlist.txt` | Strings the scan may let through after human review, each with a reason |
 
 GitHub Pages serves the `docs/` folder of the `main` branch.
@@ -36,18 +37,24 @@ python3 tools/check_site.py --base https://wangyuhan2002.github.io/seismohub-lit
 that order, and stops at the first failure. Pages rebuilds about a minute after
 the push; then the last command checks the live site.
 
+The exporter reads the app's harvest reports (`harvest_*.jsonl` in the
+`_reports` folder of the app's PDF folder, next to `seismo_hub.db`) to see
+which papers have a verified open copy. If that folder is missing it stops;
+`--open-reports DIR` names another folder, and `--open-reports none` exports
+nothing made from a full text.
+
 ## What the exporter leaves out
 
 The exporter opens the database read-only (`mode=ro` and `query_only`) and reads
 only whitelisted columns. It never exports:
 
-- PDFs or PDF paths
+- PDFs, full texts or PDF paths
 - reading state, notes or projects
 - the AI chat
-- verbatim figure-caption excerpts
+- figure analyses and figure-caption summaries, from any analysis
 - the AI's group-specific follow-up suggestions
 - papers that the app's topic classifier labels "Off-topic / not seismology"
-- anything from an AI analysis made from a PDF (see below)
+- AI analyses made from a PDF that is not a verified open copy (see below)
 
 To export the follow-up suggestions anyway, pass `--include-group-followups`.
 The privacy scan blocks them by default.
@@ -55,16 +62,28 @@ The privacy scan blocks them by default.
 ### Papers analysed from a PDF
 
 The desktop app redoes a paper's analysis from its PDF once the PDF is
-attached, and that analysis also sets the paper's topics. The site promises
-that no full text was used, so the exporter publishes nothing from such an
-analysis:
+attached, and that analysis also sets the paper's topics. Since 2026-11-18 the
+site publishes such an analysis when the PDF is a verified open copy (owner's
+decision). The exporter decides per paper:
 
-- If the paper is already on the site, it keeps the AI note, takeaway, topics,
-  keywords, facets and relevance shown in the last published snapshot. Those
-  were made from the abstract. The exporter reads them with git from
-  `--previous` (`HEAD` by default).
-- If the paper has never been on the site, it appears with its metadata and
-  abstract only: topic "Others", no keywords, facets or note.
+- **Verified open copy:** a harvest report records status `success` with
+  licence tier `OPEN_CC_BY_OR_PREPRINT` for the paper, and no report records
+  any other licence tier for it. A later failed run does not count against
+  it, because the app never replaces a PDF a paper already has. The paper
+  then shows the analysis made from its full text: takeaway, summary,
+  structured analysis, key contributions, methods, data, limitations, topic
+  matches, evidence, topics, keywords and facets. Figure analyses and the
+  page and paragraph locators of the structured analysis are left out, and
+  PDF file names in the text are masked. The note's evidence says "Based on:
+  open-access full text", and the page tells readers that this paper's AI
+  content was made from its open-access full text.
+- **Not published** when there is no verified open copy, when the paper is in
+  `tools/fulltext_blocklist.txt`, or when the model's output could not be
+  parsed (no takeaway or summary). The paper keeps the AI note, takeaway,
+  topics, keywords, facets and relevance shown in the last published snapshot
+  if those were made from the abstract. The exporter reads them with git from
+  `--previous` (`HEAD` by default). Otherwise the paper appears with its
+  metadata and abstract only: topic "Others", no keywords, facets or note.
 - If the new analysis labels the paper "Off-topic / not seismology", the paper
   leaves the site, like every off-topic paper (decided on 2026-11-16).
 
@@ -89,9 +108,13 @@ these checks pass:
 - paper count, total size and string length stay within limits. Published
   papers that the app now labels off-topic do not count as a drop, but at most
   10 % of the site may leave that way in one run.
-- nothing from an AI analysis made from a PDF is in the export: each such
-  paper shows exactly what the live snapshot showed for it, or no AI content
-  if it is new; and every source label has been published before
+- AI content made from a PDF appears only for papers that the harvest
+  reports show with a verified open copy and that are not on the full-text
+  blocklist. It never has figure analyses or page locators, and it always
+  carries the "open-access full text" label, which no other paper carries.
+  Every other paper analysed from a PDF shows exactly the abstract-based AI
+  content the live snapshot showed for it, or no AI content. Every source
+  label has been published before, apart from that one label.
 - `check_site.py` passes, and `privacy_scan.py` reports CLEAN
 - the commit changes only `docs/data/`
 - after the push, `check_site.py --base` passes on the live site
@@ -122,7 +145,8 @@ Manual publishes work as before: run `update.py`, review the diff, then push.
 ## Takedown requests
 
 Add the DOI or the journal to `tools/abstract_blocklist.txt`, re-export, and
-publish.
+publish. For an AI note made from a full text, add the DOI, the paper id or
+the journal to `tools/fulltext_blocklist.txt` instead.
 
 ## 维护说明（中文）
 
@@ -138,17 +162,17 @@ publish.
 
 推送就是公开发布，手动推送前要先确认扫描结果和改动内容。
 
-如果收到删除摘要的请求，把对应的 DOI 或期刊加进 `tools/abstract_blocklist.txt`，再重新导出。
+如果收到删除摘要的请求，把对应的 DOI 或期刊加进 `tools/abstract_blocklist.txt`，再重新导出。如果是针对依据全文生成的 AI 笔记，就把 DOI、论文 id 或期刊加进 `tools/fulltext_blocklist.txt`。
 
 ### 读过 PDF 的论文
 
-桌面版挂上 PDF 后会读 PDF 重新分析，这次分析也会改写论文的主题。网站承诺没有使用全文，所以这类分析的任何内容都不导出：
+桌面版挂上 PDF 后会读 PDF 重新分析，这次分析也会改写论文的主题。从 2026-11-18 起（维护者决定），PDF 是经过核实的开放获取版本时，网站发布这次分析。导出脚本逐篇判断：
 
-- 论文已经在网站上：继续显示上一次发布时的 AI 笔记、一句话要点、主题、关键词、分面和相关度。这些都是根据摘要生成的，导出脚本用 git 从 `--previous`（默认 `HEAD`）读取。
-- 论文从没上过网站：只显示元数据和摘要，主题记为 “Others”，没有关键词、分面和 AI 笔记。
+- **经过核实的开放版本**：抓取报告（App 的 PDF 文件夹里 `_reports` 下的 `harvest_*.jsonl`）里有这篇的 `success` 记录，许可等级为 `OPEN_CC_BY_OR_PREPRINT`，并且没有任何一条记录是别的许可等级。之后某次抓取失败不影响判断，因为 App 从不替换已经有的 PDF。这时网站显示依据全文的分析：一句话要点、总结、结构化分析、主要贡献、方法、数据、局限性、主题匹配、分析依据、主题、关键词和分面。图表解析和结构化分析里的页码、段落定位不发布，文中的 PDF 文件名被隐去。分析依据写作 “open-access full text”，页面上会告诉读者这篇的 AI 内容依据的是开放获取全文。
+- **不发布**：没有经过核实的开放版本、论文在 `tools/fulltext_blocklist.txt` 里，或者模型输出无法解析（没有要点也没有总结）。这时如果上一次发布的 AI 笔记、一句话要点、主题、关键词、分面和相关度是根据摘要生成的，就继续显示这些内容，导出脚本用 git 从 `--previous`（默认 `HEAD`）读取；否则只显示元数据和摘要，主题记为 “Others”，没有关键词、分面和 AI 笔记。
 - 新的分析把论文标为“离题 / 非地震学”：论文从网站上撤下，和其他离题论文一样（2026-11-16 决定）。
 
-只有往空仓库做第一次导出时才用 `--previous none`。每日自动发布还会单独核对一遍：这类论文显示的内容必须和线上快照完全一样，新论文必须不带任何 AI 内容，否则不推送。
+只有往空仓库做第一次导出时才用 `--previous none`。找不到抓取报告时导出会停下；`--open-reports none` 表示不发布任何依据全文的内容。每日自动发布还会单独核对一遍：依据全文的内容只能出现在经过核实的开放版本上，不能带图表解析或页码定位，并且必须标为 “open-access full text”；其他读过 PDF 的论文，显示的内容必须和线上快照里根据摘要生成的内容完全一样，或者不带任何 AI 内容，否则不推送。
 
 ### 每日自动发布
 

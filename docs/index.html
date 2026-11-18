@@ -202,10 +202,6 @@ dialog::backdrop{background:rgba(8,12,20,.55)}
 .kv{display:grid;grid-template-columns:120px minmax(0,1fr);gap:7px 12px;font-size:13.5px;align-items:start;margin:0}
 .kv dt{color:var(--faint);font-weight:700;font-size:11px;letter-spacing:.12em;text-transform:uppercase;padding-top:3px}
 .kv dd{margin:0;display:flex;flex-wrap:wrap;gap:5px;overflow-wrap:anywhere}
-.fig{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:8px}
-.fig:first-of-type{margin-top:0}
-.fig h4{margin:0 0 4px;font-size:13.5px}
-.fig p{font-size:13.5px;margin:4px 0 0}
 .muted{color:var(--muted)}
 .loading{color:var(--muted);font-size:14px;padding:14px 2px}
 .prose h3{font-size:14.5px;margin:18px 0 4px}
@@ -388,6 +384,10 @@ const SORTS = ['new', 'old', 'if', 'title']; // while searching, 'match' (best m
 const WINDOWS = ['7', '30']; // quick date windows, in days back from the snapshot date
 const GRAY_TOPICS = new Set(['Off-topic / not seismology', 'Unable to categorize', 'Others']);
 const SOURCE_NAMES = { crossref: 'Crossref', openalex: 'OpenAlex', arxiv: 'arXiv', eth_rc: 'ETH Research Collection', rss: 'publisher RSS feed' };
+// An AI note made from the paper's verified open-access full text carries this
+// label as its evidence ("ev.on"); every other note was made from the abstract
+// and public metadata (tools/export_lite.py FULLTEXT_LABEL).
+const FULLTEXT_LABEL = 'open-access full text';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // Fixed topic colours: the desktop app's palette (one Tailwind colour family per
@@ -631,14 +631,13 @@ const I18N = {
     noResults: 'No papers match the current search and filters.',
     loadMore: n => `Load more (${n} left)`,
     loadingAI: 'Loading AI analysis…', aiFail: 'Could not load the AI analysis. Check your connection and try again.', noAI: 'No AI analysis is stored for this paper.',
-    aiBanner: m => `Everything below was generated offline by ${m || 'an AI model'} from the abstract and public metadata. It may contain errors and is not endorsed by the authors or the publisher — always check the original article.`,
+    aiBanner: (m, ft) => `Everything below was generated offline by ${m || 'an AI model'} from ${ft ? 'the open-access full text of the paper' : 'the abstract and public metadata'}. It may contain errors and is not endorsed by the authors or the publisher — always check the original article.`,
     sec_takeaway: 'One-sentence takeaway', sec_structured: 'Structured analysis', sec_summary: 'AI summary',
-    sec_kc: 'Key contributions', sec_me: 'Methods', sec_de: 'Data & experiments', sec_fig: 'Figures',
+    sec_kc: 'Key contributions', sec_me: 'Methods', sec_de: 'Data & experiments',
     sec_li: 'Limitations', sec_tm: 'Topic match', sec_facets: 'Facets', sec_ev: 'Evidence',
     sa_method: 'Method', sa_data: 'Data', sa_results: 'Results', sa_limitations: 'Limitations', sa_novelty: 'Novelty',
     saSource: s => `Source: ${s}`, confidence: 'confidence',
-    ev_on: 'Based on', ev_sources: 'Used sources', ev_model: 'Model', ev_notes: 'Notes',
-    fig_desc: 'What it shows', fig_interp: 'Interpretation', fig_finding: 'Key finding', fig_cap: 'Caption (summary)', fig_rel: 'Relevance to the group',
+    ev_on: 'Based on', ev_sources: 'Used sources', ev_model: 'Model', ev_notes: 'Notes', ftLabel: 'open-access full text',
     copyLink: 'Copy link', copied: 'Link copied', close: 'Close',
     prev: 'Previous paper', next: 'Next paper', pos: (i, n) => `${i} / ${n}`,
     copyBib: 'Copy BibTeX', bibCopied: 'BibTeX copied',
@@ -650,14 +649,14 @@ const I18N = {
     loading: 'Loading papers…',
     foot1: (n, d) => `SeismoHub Lite · static snapshot exported ${d} · ${n} papers.`,
     foot2: 'Titles and abstracts are © their authors and/or publishers and are shown for non-commercial scholarly reference with links to the original articles; rights holders can request removal via a GitHub issue.',
-    foot3: 'Content marked AI was generated offline with Google Gemini from abstracts and public metadata and may contain errors. No AI runs on this site. No cookies, analytics or third-party resources.',
+    foot3: 'Content marked AI was generated offline with Google Gemini from the abstract and public metadata or, for papers with a verified open-access copy, from the full text; each paper says which. It may contain errors. No AI runs on this site. No cookies, analytics or third-party resources.',
     footAbout: 'About & full notice', footRepo: 'Source on GitHub', footIssue: 'Report a problem / request removal',
     aboutTitle: 'About SeismoHub Lite',
     aboutBody: (n, d) => [
-      ['What is this?', 'SeismoHub Lite is a read-only, static snapshot of SeismoHub, a personal literature tracker for seismology and wave physics. It lists recent papers with their bibliographic metadata, original abstracts and the AI analyses that were generated offline. It contains no PDFs, and the interactive AI chat of the desktop app is not included.'],
+      ['What is this?', 'SeismoHub Lite is a read-only, static snapshot of SeismoHub, a personal literature tracker for seismology and wave physics. It lists recent papers with their bibliographic metadata, original abstracts and the AI analyses that were generated offline. It contains no PDFs or full texts, and the interactive AI chat of the desktop app is not included.'],
       ['Where the data comes from', 'Titles, authors, journals, dates, DOIs and abstracts come from public bibliographic metadata: Crossref, OpenAlex, arXiv, the ETH Research Collection and publisher RSS feeds. Journal names are lightly normalised. Abstracts are shown as provided, except that whitespace is normalised, leading “Abstract/Summary” headings are dropped and e-mail addresses are masked.'],
       ['Copyright and takedown', 'Titles and abstracts are the work of their authors and are often © the publisher. They are reproduced here solely for non-commercial scholarly reference, each with a link to the original article; this site claims no rights in them. If you hold rights in an abstract and would like it (or a whole entry) removed, please open an issue on GitHub and it will be removed promptly.'],
-      ['AI-generated content', 'Everything marked “AI” — takeaways, summaries, structured analyses, key contributions, methods, data notes, limitations, figure notes, topic labels, keywords and facets — was generated offline with Google Gemini from each paper’s abstract, public metadata and web search results; no full-text PDFs were used. It may be inaccurate or incomplete, is not endorsed by the authors or publishers, and does not replace reading the paper. No AI model runs on this website and nothing you type here is sent anywhere.'],
+      ['AI-generated content', 'Everything marked “AI” — takeaways, summaries, structured analyses, key contributions, methods, data notes, limitations, topic labels, keywords and facets — was generated offline with Google Gemini. For most papers it was made from the abstract, public metadata and web search results. For papers with a verified open-access copy (CC BY or a preprint), it was made from that full text. Each paper’s AI section says which of the two it is based on. The full texts themselves are not published here. The AI content may be inaccurate or incomplete, is not endorsed by the authors or publishers, and does not replace reading the paper. No AI model runs on this website and nothing you type here is sent anywhere.'],
       ['Privacy', 'This page is plain static files served by GitHub Pages. It sets no cookies and loads no analytics, fonts, scripts or trackers from third parties; search and filtering run entirely in your browser. Only your language choice, and whether the Browse directory is shown, are remembered in your browser’s local storage. As the host, GitHub may keep standard server logs (see GitHub’s privacy statement). Outbound links go straight to doi.org, arxiv.org or the publisher.'],
       ['Snapshot', `Exported on ${d}; ${n} papers.`],
     ],
@@ -693,14 +692,13 @@ const I18N = {
     noResults: '没有符合当前搜索和筛选条件的文章。',
     loadMore: n => `加载更多（还剩 ${n} 篇）`,
     loadingAI: '正在加载 AI 分析…', aiFail: 'AI 分析加载失败，请检查网络后重试。', noAI: '这篇文章没有存储 AI 分析。',
-    aiBanner: m => `以下内容由 ${m || 'AI 模型'} 根据摘要和公开元数据离线生成，可能有误，也未经作者或出版社认可，请以原文为准。`,
+    aiBanner: (m, ft) => `以下内容由 ${m || 'AI 模型'} 根据${ft ? '这篇文章的开放获取全文' : '摘要和公开元数据'}离线生成，可能有误，也未经作者或出版社认可，请以原文为准。`,
     sec_takeaway: '一句话摘要', sec_structured: '结构化分析', sec_summary: 'AI 总结',
-    sec_kc: '主要贡献', sec_me: '研究方法', sec_de: '数据与实验', sec_fig: '图表解析',
+    sec_kc: '主要贡献', sec_me: '研究方法', sec_de: '数据与实验',
     sec_li: '局限性', sec_tm: '主题匹配', sec_facets: '分面标签', sec_ev: '分析依据',
     sa_method: '方法', sa_data: '数据', sa_results: '结果', sa_limitations: '局限', sa_novelty: '创新点',
     saSource: s => `来源：${s}`, confidence: '置信度',
-    ev_on: '依据', ev_sources: '参考来源', ev_model: '模型', ev_notes: '说明',
-    fig_desc: '内容', fig_interp: '解读', fig_finding: '关键发现', fig_cap: '图注（概述）', fig_rel: '与课题组的关系',
+    ev_on: '依据', ev_sources: '参考来源', ev_model: '模型', ev_notes: '说明', ftLabel: '开放获取全文',
     copyLink: '复制链接', copied: '链接已复制', close: '关闭',
     prev: '上一篇', next: '下一篇', pos: (i, n) => `${i} / ${n}`,
     copyBib: '复制 BibTeX', bibCopied: 'BibTeX 已复制',
@@ -712,14 +710,14 @@ const I18N = {
     loading: '正在加载文章…',
     foot1: (n, d) => `SeismoHub Lite · 静态快照，导出于 ${d} · 共 ${n} 篇。`,
     foot2: '标题和摘要的版权归作者和/或出版社所有，仅供非商业的学术参考，并附原文链接；权利人可通过 GitHub issue 要求删除。',
-    foot3: '标有 AI 的内容由 Google Gemini 根据摘要和公开元数据离线生成，可能有误。本站运行时不调用任何 AI，不使用 cookie、统计或第三方资源。',
+    foot3: '标有 AI 的内容由 Google Gemini 离线生成：一般依据摘要和公开元数据，有经过核实的开放获取版本的文章依据全文，每篇文章都注明了依据。这些内容可能有误。本站运行时不调用任何 AI，不使用 cookie、统计或第三方资源。',
     footAbout: '关于与完整声明', footRepo: 'GitHub 源代码', footIssue: '反馈问题 / 申请删除',
     aboutTitle: '关于 SeismoHub Lite',
     aboutBody: (n, d) => [
-      ['这是什么？', 'SeismoHub Lite 是 SeismoHub 的只读静态快照。SeismoHub 是一个个人用的地震学与波动物理文献追踪工具。本站列出近期文章的书目信息、原文摘要，以及离线生成好的 AI 分析。本站不含 PDF，也没有桌面版里的 AI 对话功能。'],
+      ['这是什么？', 'SeismoHub Lite 是 SeismoHub 的只读静态快照。SeismoHub 是一个个人用的地震学与波动物理文献追踪工具。本站列出近期文章的书目信息、原文摘要，以及离线生成好的 AI 分析。本站不含 PDF 或全文，也没有桌面版里的 AI 对话功能。'],
       ['数据来源', '标题、作者、期刊、日期、DOI 和摘要来自公开的书目元数据：Crossref、OpenAlex、arXiv、ETH Research Collection 和出版社的 RSS。期刊名做了少量归并。摘要按原样显示，只规整了空白、去掉开头的“Abstract/Summary”字样，并隐去了邮箱地址。'],
       ['版权与删除请求', '标题和摘要是作者的作品，版权通常归出版社所有。本站转载它们仅用于非商业的学术参考，每篇都附原文链接，不对其主张任何权利。如果你是权利人，希望删除某篇摘要或整条记录，请在 GitHub 上提交 issue，我们会尽快移除。'],
-      ['AI 生成内容', '所有标有“AI”的内容，包括一句话摘要、总结、结构化分析、主要贡献、方法、数据、局限性、图表解析、主题标签、关键词和分面标签，都是离线用 Google Gemini 根据每篇文章的摘要、公开元数据和网络搜索结果生成的，没有使用全文 PDF。这些内容可能不准确或不完整，未经作者或出版社认可，不能代替阅读原文。本网站运行时不调用任何 AI，你在这里输入的内容也不会发送到任何地方。'],
+      ['AI 生成内容', '所有标有“AI”的内容，包括一句话摘要、总结、结构化分析、主要贡献、方法、数据、局限性、主题标签、关键词和分面标签，都是离线用 Google Gemini 生成的。大多数文章依据摘要、公开元数据和网络搜索结果；有经过核实的开放获取版本（CC BY 或预印本）的文章，依据的是这份全文。每篇文章的 AI 部分都注明了依据哪一种。本站不发布全文本身。这些 AI 内容可能不准确或不完整，未经作者或出版社认可，不能代替阅读原文。本网站运行时不调用任何 AI，你在这里输入的内容也不会发送到任何地方。'],
       ['隐私', '本页是由 GitHub Pages 托管的纯静态文件，不设置 cookie，也不加载任何第三方的统计、字体、脚本或追踪器；搜索和筛选完全在你的浏览器里进行。只有你选择的语言和是否显示目录会保存在浏览器的本地存储里。GitHub 作为托管方可能保留常规的服务器日志（见 GitHub 隐私声明）。外链直接指向 doi.org、arxiv.org 或出版社。'],
       ['快照', `导出于 ${d}，共 ${n} 篇。`],
     ],
@@ -1383,7 +1381,10 @@ function renderAI(p, a) {
   const wrap = $('#aiwrap', dBody);
   if (!wrap) return;
   if (!a) { wrap.replaceChildren(h('p', { class: 'muted' }, T('noAI'))); return; }
-  const out = [h('div', { class: 'notice ai' }, h('span', { class: 'ai-badge', title: T('aiTip') }, 'AI'), h('span', null, T('aiBanner')(a.model)))];
+  const ev = a.ev || {};
+  const ft = ev.on === FULLTEXT_LABEL; // made from the open-access full text, else from the abstract and metadata
+  const out = [h('div', { class: 'notice ai', 'data-basis': ft ? 'fulltext' : 'abstract' },
+    h('span', { class: 'ai-badge', title: T('aiTip') }, 'AI'), h('span', null, T('aiBanner')(a.model, ft)))];
   const tk = pick(p.tk);
   if (tk) out.push(sec(T('sec_takeaway'), h('p', null, tk), true));
   const sa = a.sa || {};
@@ -1399,16 +1400,6 @@ function renderAI(p, a) {
     const items = pickList(a[k]);
     if (items.length) out.push(sec(T(label), ul(items), true));
   }
-  const figs = arr(a.fig);
-  if (figs.length) {
-    out.push(sec(T('sec_fig'), figs.map(fg => h('div', { class: 'fig' },
-      h('h4', null, [fg.id, fg.title].filter(Boolean).join(' — ')),
-      pick(fg.desc) ? h('p', null, h('strong', null, T('fig_desc') + ': '), pick(fg.desc)) : null,
-      pick(fg.interp) ? h('p', null, h('strong', null, T('fig_interp') + ': '), pick(fg.interp)) : null,
-      fg.finding ? h('p', null, h('strong', null, T('fig_finding') + ': '), fg.finding) : null,
-      fg.cap ? h('p', { class: 'muted' }, h('strong', null, T('fig_cap') + ': '), fg.cap) : null,
-      fg.rel ? h('p', { class: 'muted' }, h('strong', null, T('fig_rel') + ': '), fg.rel) : null)), true));
-  }
   const li = pickList(a.li);
   if (li.length) out.push(sec(T('sec_li'), ul(li), true));
   const tm = arr(a.tm);
@@ -1421,10 +1412,10 @@ function renderAI(p, a) {
   if (rows.length) {
     out.push(sec(T('sec_facets'), h('dl', { class: 'kv' }, rows.map(([k, vals]) => [h('dt', null, T('f_' + k)), h('dd', null, vals.map(v => facetChip(k, v)))])), true));
   }
-  const ev = a.ev || {};
+  const label = v => (v === FULLTEXT_LABEL ? T('ftLabel') : v);
   const evRows = [];
-  if (ev.on) evRows.push([T('ev_on'), ev.on]);
-  if (arr(a.us).length) evRows.push([T('ev_sources'), arr(a.us).join(', ')]);
+  if (ev.on) evRows.push([T('ev_on'), label(ev.on)]);
+  if (arr(a.us).length) evRows.push([T('ev_sources'), arr(a.us).map(label).join(', ')]);
   if (a.model) evRows.push([T('ev_model'), a.model]);
   if (ev.notes) evRows.push([T('ev_notes'), ev.notes]);
   if (evRows.length) out.push(sec(T('sec_ev'), h('dl', { class: 'kv' }, evRows.map(([k, v]) => [h('dt', null, k), h('dd', null, v)])), true));

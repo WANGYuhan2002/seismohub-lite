@@ -4,7 +4,9 @@
     python3 tools/update.py --db <path-to>/seismo_hub.db --env-file <path-to>/.env [--env-file …]
 
 Steps, in order. It stops at the first failure:
-  1. tools/export_lite.py    read-only export of whitelisted fields
+  1. tools/export_lite.py    read-only export of whitelisted fields; it reads
+                             the licence tiers in the app's harvest reports to
+                             see which papers have a verified open copy
   2. tools/check_site.py     end-to-end check in headless Chrome
   3. tools/privacy_scan.py   must report RESULT: CLEAN
   4. shows `git status` and `git diff --stat` for review
@@ -32,6 +34,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Export, check and scan SeismoHub Lite (never publishes)")
     ap.add_argument("--db", required=True, help="path to seismo_hub.db (opened read-only)")
     ap.add_argument("--env-file", action="append", default=[], help="env file whose values must not leak (repeatable)")
+    ap.add_argument("--open-reports", help="the app's harvest reports folder, for export_lite.py "
+                                           "(default: next to --db; 'none': nothing made from a full text)")
     ap.add_argument("--skip-browser-check", action="store_true", help="skip the headless-Chrome check")
     args = ap.parse_args()
 
@@ -39,7 +43,10 @@ def main() -> int:
     scan = [py, str(TOOLS / "privacy_scan.py"), "--db", args.db]
     for env in args.env_file:
         scan += ["--env-file", env]
-    steps = [("1/3 export", [py, str(TOOLS / "export_lite.py"), "--db", args.db])]
+    export = [py, str(TOOLS / "export_lite.py"), "--db", args.db]
+    if args.open_reports:
+        export += ["--open-reports", args.open_reports]
+    steps = [("1/3 export", export)]
     if not args.skip_browser_check:
         steps.append(("2/3 page check", [py, str(TOOLS / "check_site.py")]))
     steps.append(("3/3 privacy scan", scan))
